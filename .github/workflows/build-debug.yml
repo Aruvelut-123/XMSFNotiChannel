@@ -31,11 +31,14 @@ jobs:
 
       - name: Set up Android SDK
         uses: android-actions/setup-android@v3
+        with:
+          # 新版 cmdline-tools 已移除 "tools" 包，用默认值会让 action 直接失败
+          packages: 'platform-tools'
 
       # compileSdk 37 需要对应的 platform，buildToolsVersion 在 build.gradle 里固定为 37.0.0
       - name: Install SDK components
         run: |
-          sdkmanager --install "platform-tools" "platforms;android-37.0" "build-tools;37.0.0"
+          sdkmanager --install "platforms;android-37.0" "build-tools;37.0.0"
           yes | sdkmanager --licenses > /dev/null || true
 
       - name: Set up Gradle
