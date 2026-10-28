@@ -28,6 +28,17 @@ Android 17 上系统的所有相关校验都收敛到这一个方法，因此单
 
 ## 版本适配说明
 
+### 1.5.0 — 迁移到 YukiHookAPI 1.5.x
+
+| 变更 | 原因 |
+| --- | --- |
+| hook 框架改为 **yukihook-runtime-libxposed 1.5.0** | 1.5.x 是全新架构，`runtime-libxposed` 提供基于 libxposed API 的运行时，`java_init.list` / `module.prop` / `scope.list` 由 KSP 生成 |
+| 额外显式声明 **yukihook-core 1.5.0** | `runtime-libxposed` 的 API 变体只暴露 `kotlin-stdlib`，core 走 runtime 作用域，不加的话编译期找不到 `YukiHookXposedModule` |
+| 入口改为 `@YukiHookLibXposedEntry(scope = ["system"])` | libxposed 的系统框架作用域要用虚拟包名 `system`，只写 `android` 时 LSPosed 不会把模块装进 system 进程 |
+| 用 `LibXposed102Entry` 手写入口 | KSP 编译器目前没有支持 Kotlin 2.4 的版本，手写等价入口并手工维护 `META-INF/xposed` 三件套 |
+| 改用外部 **Kotlin 2.4.21** 插件 | YukiHook 1.5.0 由 Kotlin 2.4 编译，AGP 9 内置的 Kotlin 2.2 读不了它的 metadata |
+| 新增 GitHub Actions 自动构建 | push / PR / 手动触发时构建 debug APK 并上传 artifact |
+
 ### 1.3.0 — Android 17 (SDK 37) 适配
 
 | 变更 | 原因 |
