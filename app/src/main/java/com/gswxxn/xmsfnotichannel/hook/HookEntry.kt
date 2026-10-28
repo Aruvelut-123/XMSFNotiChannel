@@ -2,6 +2,7 @@ package com.gswxxn.xmsfnotichannel.hook
 
 import android.os.Binder
 import android.util.Log
+import com.gswxxn.xmsfnotichannel.utils.DiagnosticProbe
 import com.gswxxn.xmsfnotichannel.utils.ModuleConstants
 import com.highcapable.yukihookapi.annotation.xposed.YukiHookLibXposedEntry
 import com.highcapable.yukihookapi.hook.factory.encase
@@ -91,9 +92,12 @@ object HookEntry : YukiHookXposedModule {
     private var installed = false
 
     override fun onHook() = encase {
+        DiagnosticProbe.mark("onHook:encaseBlock")
         loadSystem {
+            DiagnosticProbe.mark("onHook:loadSystem")
             awaitTargetService()
         }
+        DiagnosticProbe.mark("onHook:encaseBlockEnd")
     }
 
     /**
@@ -106,6 +110,7 @@ object HookEntry : YukiHookXposedModule {
      */
     private fun PackageParam.awaitTargetService() {
         val moduleUid = runCatching { module.appInfo.uid }.getOrDefault(-1)
+        DiagnosticProbe.mark("awaitTargetService:enter", "moduleUid=$moduleUid")
 
         val waitHookInstalled = runCatching {
             val manager = Class.forName(SERVICE_MANAGER_CLASS, false, hostClassLoader)
@@ -123,11 +128,15 @@ object HookEntry : YukiHookXposedModule {
                     after {
                         runCatching {
                             val started = args.firstOrNull() as? Class<*> ?: return@runCatching
-                            if (started.name == TARGET_CLASS) hookTargets(moduleUid)
+                            if (started.name == TARGET_CLASS) {
+                                DiagnosticProbe.mark("startService:targetStarted")
+                                hookTargets(moduleUid)
+                            }
                         }.onFailure { Log.w(TAG, "startService callback failed", it) }
                     }
                 }
                 Log.i(TAG, "waiting $TARGET_CLASS via $SERVICE_MANAGER_CLASS#startService")
+                DiagnosticProbe.mark("awaitTargetService:startServiceHook")
                 true
             } else {
                 // 兜底：每次 boot phase 推进时检查一次目标类是否已可加载
@@ -148,6 +157,7 @@ object HookEntry : YukiHookXposedModule {
             }
         }.getOrElse {
             Log.e(TAG, "failed to install wait hook", it)
+            DiagnosticProbe.mark("awaitTargetService:fail", "err=${it::class.java.name}:${it.message}")
             false
         }
 
@@ -168,7 +178,10 @@ object HookEntry : YukiHookXposedModule {
         val clazz = runCatching {
             Class.forName(TARGET_CLASS, false, hostClassLoader)
         }.getOrElse {
-            if (!quiet) Log.e(TAG, "$TARGET_CLASS not loadable yet", it)
+            if (!quiet) {
+                Log.e(TAG, "$TARGET_CLASS not loadable yet", it)
+                DiagnosticProbe.mark("hookTargets:classFail", "err=${it::class.java.name}:${it.message}")
+            }
             return
         }
 
@@ -200,6 +213,7 @@ object HookEntry : YukiHookXposedModule {
 
         installed = true
         Log.i(TAG, "hooked $distinct in $TARGET_CLASS for uid=$moduleUid")
+        DiagnosticProbe.mark("hookTargets:success", "methods=$distinct")
         writeStatus(methods = distinct)
     }
 
