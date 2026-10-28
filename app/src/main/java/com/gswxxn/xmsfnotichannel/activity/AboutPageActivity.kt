@@ -29,7 +29,7 @@ class AboutPageActivity : BaseActivity() {
 
         binding.apply {
 
-            titleBackIcon.setOnClickListener { onBackPressed() }
+            titleBackIcon.setOnClickListener { finish() }
 
             appIcon.setImageBitmap(roundBitmapByShader(
                 getDrawable(R.mipmap.ic_launcher)?.let {
@@ -85,8 +85,15 @@ class AboutPageActivity : BaseActivity() {
                         it,
                         it.intrinsicHeight
                     )
-                }, RoundDegree.Circle
+                }, RoundDegree.Circle)
             )
+            baymaxIcon.setImageBitmap(roundBitmapByShader(
+                getDrawable(R.mipmap.img_developer_baymax)?.let {
+                    drawable2Bitmap(
+                        it,
+                        it.intrinsicHeight
+                    )
+                }, RoundDegree.Circle)
             )
 
             version.text = getString(R.string.version, BuildConfig.VERSION_NAME)
@@ -118,13 +125,22 @@ class AboutPageActivity : BaseActivity() {
                     )
                 }
             }
+            developerBaymax.setOnClickListener {
+                Toast.makeText(this@AboutPageActivity, getString(R.string.follow_me), Toast.LENGTH_SHORT).show()
+                startActivity(
+                    Intent(
+                        Intent.ACTION_VIEW,
+                        Uri.parse("https://github.com/Aruvelut-123")
+                    )
+                )
+            }
 
             githubRepo.setOnClickListener {
                 Toast.makeText(this@AboutPageActivity, getString(R.string.star_project), Toast.LENGTH_SHORT).show()
                 startActivity(
                     Intent(
                         Intent.ACTION_VIEW,
-                        Uri.parse("https://github.com/GSWXXN/XMSFNotiChannel")
+                        Uri.parse("https://github.com/Aruvelut-123/XMSFNotiChannel")
                     )
                 )
             }
@@ -143,10 +159,16 @@ class AboutPageActivity : BaseActivity() {
                     "GNU Affero General Public License v3.0"
                 )
                 addLicenseV(
-                    "YukiHookAPI",
-                    "fankes",
-                    "https://github.com/fankes/YukiHookAPI",
-                    "MIT License"
+                    "libxposed API",
+                    "LSPosed",
+                    "https://github.com/libxposed/api",
+                    "Apache License 2.0"
+                )
+                addLicenseV(
+                    "HiddenApiBypass",
+                    "LSPosed",
+                    "https://github.com/LSPosed/AndroidHiddenApiBypass",
+                    "Apache License 2.0"
                 )
             }
         }

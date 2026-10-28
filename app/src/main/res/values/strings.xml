@@ -1,10 +1,14 @@
+<?xml version="1.0" encoding="utf-8"?>
 <resources>
     <string name="app_name">你这运营消息根本就全都是广告吧</string>
+    <string name="module_description">一键管理所有应用的运营消息通知通道</string>
 
     <string name="module_version">模块版本：%s</string>
     <string name="module_is_not_active">模块未激活</string>
     <string name="module_is_active">模块已激活</string>
-    <string name="xposed_framework_version">Activated by %s API %d</string>
+    <string name="module_not_in_scope">作用域未包含系统框架</string>
+    <string name="xposed_framework_version">Activated by %s</string>
+
     <string name="loading">正在加载……</string>
     <string name="check_active_toast">请检查模块是否激活</string>
     <string name="no_group">[无分组]</string>
@@ -23,7 +27,19 @@
     <string name="alert_reset">恢复默认</string>
     <string name="can_not_be_empty">搜索名称不能为空</string>
     <string name="searching_name">通知通道搜索名称</string>
-    <string name="searching_name_summary">支持正则匹配</string>
+    <string name="searching_name_summary">支持正则匹配，同时匹配通道名与通道 ID</string>
+
+    <!-- 状态提示 -->
+    <string name="hint_not_active">模块未激活，请在 Xposed 管理器中启用后重启</string>
+    <string name="hint_not_in_scope">请在模块作用域中勾选「系统框架」</string>
+    <string name="hint_restart_needed">作用域已就绪，请重启手机让 hook 生效</string>
+    <string name="hint_ready">模块已就绪</string>
+
+    <!-- 操作结果 -->
+    <string name="no_channel_found">未找到匹配「%s」的通知通道</string>
+    <string name="bulk_success">已修改 %d 个通道</string>
+    <string name="bulk_no_change">没有需要修改的通道</string>
+    <string name="toggle_failed">修改 %1$s 的「%2$s」失败，请检查模块是否已激活</string>
 
     <string name="version">v%s</string>
     <string name="follow_me">点个关注，不迷路</string>
@@ -32,8 +48,8 @@
     <string name="about">关于</string>
     <string name="developer">开发者</string>
     <string name="developer_milu">迷璐</string>
+    <string name="developer_baymax">Baymaxawa</string>
     <string name="open_source_repo">开源仓库</string>
     <string name="open_source_license">开放源代码许可</string>
     <string name="hide_icon">隐藏桌面图标</string>
-
 </resources>

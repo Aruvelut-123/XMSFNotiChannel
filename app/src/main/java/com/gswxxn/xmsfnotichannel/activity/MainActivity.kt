@@ -12,11 +12,15 @@ import com.gswxxn.xmsfnotichannel.R
 import com.gswxxn.xmsfnotichannel.databinding.ActivityMainBinding
 import com.gswxxn.xmsfnotichannel.databinding.AdapterConfigBinding
 import com.gswxxn.xmsfnotichannel.utils.AppInfoHelper
+import com.gswxxn.xmsfnotichannel.utils.FrameworkStatus
 import com.gswxxn.xmsfnotichannel.utils.NCUtils
-import com.highcapable.yukihookapi.YukiHookAPI
-import com.highcapable.yukihookapi.YukiHookAPI.Status.Executor
-import com.highcapable.yukihookapi.hook.factory.dataChannel
-import kotlinx.coroutines.*
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.MainScope
+import kotlinx.coroutines.cancel
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 
 class MainActivity : BaseActivity(), CoroutineScope by MainScope() {
 
@@ -24,63 +28,86 @@ class MainActivity : BaseActivity(), CoroutineScope by MainScope() {
         const val defaultChannelName = "运营消息"
     }
 
-    private var androidRestartNeeded = true
     private lateinit var binding: ActivityMainBinding
     private var channelName = defaultChannelName
+    private var appInfoFilter = listOf<AppInfoHelper.MyAppInfo>()
+    private var onRefreshList: (() -> Unit)? = null
+
+    private val nc: NCUtils by lazy { NCUtils(this) }
+
+    /** 框架状态变化时刷新顶部状态条 */
+    private val statusListener: () -> Unit = { runOnUiThread { refreshState() } }
 
     override fun onCreate() {
-        var appInfoFilter = listOf<AppInfoHelper.MyAppInfo>()
         val appInfo = AppInfoHelper(this)
-        var onRefreshList: (() -> Unit)? = null
-        val nc by lazy { NCUtils(this) }
+
         binding = ActivityMainBinding.inflate(layoutInflater).apply { setContentView(root) }
 
-
         binding.titleAboutPage.setOnClickListener {
-            val intent = Intent(this, AboutPageActivity::class.java)
-            startActivity(intent)
+            startActivity(Intent(this, AboutPageActivity::class.java))
         }
 
-        // 显示版本号
         binding.mainTextVersion.text = getString(R.string.module_version, BuildConfig.VERSION_NAME)
 
         // 开始检测
         binding.actionButton.setOnClickListener {
-            if (androidRestartNeeded) {
-                Toast.makeText(this, getString(R.string.check_active_toast), Toast.LENGTH_SHORT).show()
+            val state = FrameworkStatus.state
+            if (state != FrameworkStatus.State.ACTIVE) {
+                Toast.makeText(this, describeStateHint(state), Toast.LENGTH_SHORT).show()
                 return@setOnClickListener
             }
             showView(false, binding.actionButton)
             showView(true, binding.configListLoadingView)
+
             appInfo.pattern = channelName
             launch {
-                appInfoFilter = withContext(Dispatchers.Default) { appInfo.getAppInfoList() }
-
+                appInfoFilter = withContext(Dispatchers.IO) { appInfo.getAppInfoList() }
                 showView(false, binding.configListLoadingView)
                 showView(true, binding.configListView, binding.afterActions)
+                onRefreshList?.invoke()
+
+                if (appInfoFilter.isEmpty()) {
+                    Toast.makeText(
+                        this@MainActivity,
+                        getString(R.string.no_channel_found, channelName),
+                        Toast.LENGTH_LONG
+                    ).show()
+                }
             }
         }
 
         // 一键开启
         binding.enableAll.setOnClickListener {
-            appInfoFilter.forEach {
-                if (it.ncInfo.importance == 0) {
-                    nc.enableSpecificNotification(it)
-                    it.ncInfo.importance = 3
+            launch {
+                var changed = 0
+                withContext(Dispatchers.IO) {
+                    appInfoFilter.forEach {
+                        if (it.ncInfo.importance == 0) {
+                            if (nc.enableSpecificNotification(it)) changed++
+                            it.ncInfo.importance = 3
+                        }
+                    }
                 }
+                onRefreshList?.invoke()
+                reportBulkResult(changed)
             }
-            onRefreshList?.invoke()
         }
 
         // 一键关闭
         binding.disableAll.setOnClickListener {
-            appInfoFilter.forEach {
-                if (it.ncInfo.importance > 0) {
-                    nc.disableSpecificNotification(it)
-                    it.ncInfo.importance = 0
+            launch {
+                var changed = 0
+                withContext(Dispatchers.IO) {
+                    appInfoFilter.forEach {
+                        if (it.ncInfo.importance > 0) {
+                            if (nc.disableSpecificNotification(it)) changed++
+                            it.ncInfo.importance = 0
+                        }
+                    }
                 }
+                onRefreshList?.invoke()
+                reportBulkResult(changed)
             }
-            onRefreshList?.invoke()
         }
 
         // 重新检测
@@ -89,143 +116,185 @@ class MainActivity : BaseActivity(), CoroutineScope by MainScope() {
             launch {
                 showView(false, binding.configListView, binding.afterActions)
                 showView(true, binding.configListLoadingView)
-                appInfoFilter = withContext(Dispatchers.Default) { appInfo.getAppInfoListForNew() }
-                delay(500)
+                appInfoFilter = withContext(Dispatchers.IO) { appInfo.getAppInfoListForNew() }
+                delay(300)
                 showView(true, binding.configListView, binding.afterActions)
                 showView(false, binding.configListLoadingView)
                 onRefreshList?.invoke()
             }
         }
 
-        // 列表
+        setupList()
+    }
+
+    private fun reportBulkResult(changed: Int) {
+        val message = if (changed > 0) {
+            getString(R.string.bulk_success, changed)
+        } else {
+            getString(R.string.bulk_no_change)
+        }
+        Toast.makeText(this, message, Toast.LENGTH_SHORT).show()
+    }
+
+    private fun setupList() {
         binding.configListView.apply {
             adapter = object : BaseAdapter() {
-
                 override fun getCount() = appInfoFilter.size
-
                 override fun getItem(position: Int) = appInfoFilter[position]
-
                 override fun getItemId(position: Int) = position.toLong()
 
                 override fun getView(position: Int, convertView: View?, parent: ViewGroup?): View {
-                    var cView = convertView
                     val holder: AdapterConfigBinding
+                    val view: View
                     if (convertView == null) {
                         holder = AdapterConfigBinding.inflate(LayoutInflater.from(context))
-                        cView = holder.root
-                        cView.tag = holder
-                    }else {
-                        holder = cView?.tag as AdapterConfigBinding
+                        view = holder.root
+                        view.tag = holder
+                    } else {
+                        view = convertView
+                        holder = convertView.tag as AdapterConfigBinding
                     }
-                    getItem(position).also {
-                        val openHint: String
-                        val closeHint: String
-                        if (channelName == defaultChannelName) {
-                            holder.adpChannelInfo.visibility = View.GONE
-                            openHint = getString(R.string.enabled_operation_notification)
-                            closeHint = getString(R.string.disabled_operation_notification)
-                        } else {
-                            holder.adpChannelInfo.visibility = View.VISIBLE
-                            openHint = getString(R.string.enabled_notification_other)
-                            closeHint = getString(R.string.disabled_notification_other)
-                        }
 
-                        // 设置图标
-                        holder.adpAppIcon.setImageDrawable(it.icon)
-                        // 设置应用名
-                        holder.adpAppName.text = it.appName
-                        // 设置组名
-                        holder.adpChannelGroup.text = it.ncInfo.channelGroupName.let { name -> if (name == "") getString(R.string.no_group) else name }
-                        // 设置通道名
-                        holder.adpChannelName.text = it.ncInfo.channelName
-                        // 设置状态
-                        holder.adpAppStatus.apply {
-                            text = when (it.ncInfo.importance) {
-                                0 -> closeHint
-                                else -> openHint
-                            }
-                            setTextColor(getColor(
-                                when (it.ncInfo.importance) {
-                                    -1 -> R.color.colorTextGray
-                                    0 -> R.color.colorTextRed
+                    val item = getItem(position)
+                    val info = item.ncInfo
+
+                    val openHint: String
+                    val closeHint: String
+                    if (channelName == defaultChannelName) {
+                        holder.adpChannelInfo.visibility = View.GONE
+                        openHint = getString(R.string.enabled_operation_notification)
+                        closeHint = getString(R.string.disabled_operation_notification)
+                    } else {
+                        holder.adpChannelInfo.visibility = View.VISIBLE
+                        openHint = getString(R.string.enabled_notification_other)
+                        closeHint = getString(R.string.disabled_notification_other)
+                    }
+
+                    holder.adpAppIcon.setImageDrawable(item.icon)
+                    holder.adpAppName.text = item.appName
+                    holder.adpChannelGroup.text = info.channelGroupName.ifEmpty {
+                        getString(R.string.no_group)
+                    }
+                    holder.adpChannelName.text = info.channelName.ifEmpty { info.channelId }
+                    holder.adpAppStatus.apply {
+                        text = if (info.importance == 0) closeHint else openHint
+                        setTextColor(
+                            getColor(
+                                when {
+                                    info.importance < 0 -> R.color.colorTextGray
+                                    info.importance == 0 -> R.color.colorTextRed
                                     else -> R.color.green
                                 }
-                            ))
-                        }
-                        // 设置LinearLayout
-                        holder.adapterLayout.setOnClickListener { _ ->
-                            when (it.ncInfo.importance) {
-                                -1 -> return@setOnClickListener
-                                0 -> {
-                                    nc.enableSpecificNotification(it)
-                                    holder.adpAppStatus.apply {
-                                        text = openHint
-                                        setTextColor(getColor(R.color.green))
-                                    }
-                                    it.ncInfo.importance = 3
-                                }
-                                else -> {
-                                    nc.disableSpecificNotification(it)
-                                    holder.adpAppStatus.apply {
-                                        text = closeHint
-                                        setTextColor(getColor(R.color.colorTextRed))
-                                    }
-                                    it.ncInfo.importance = 0
-                                }
-                            }
-                        }
+                            )
+                        )
                     }
-                    return cView
+
+                    holder.adapterLayout.setOnClickListener { toggleChannel(item, holder, openHint, closeHint) }
+
+                    return view
                 }
-            }.apply{ onRefreshList = { notifyDataSetChanged() } }
+            }.apply { onRefreshList = { notifyDataSetChanged() } }
         }
     }
 
-    private fun refreshState() {
+    /**
+     * 单个通道开关。修改失败时保持原状态并提示，避免界面与系统不一致。
+     */
+    private fun toggleChannel(
+        item: AppInfoHelper.MyAppInfo,
+        holder: AdapterConfigBinding,
+        openHint: String,
+        closeHint: String
+    ) {
+        if (item.ncInfo.importance < 0) return
 
-        binding.mainStatus.setBackgroundResource(
-            when {
-                YukiHookAPI.Status.isXposedModuleActive && androidRestartNeeded -> R.drawable.bg_yellow_round
-                YukiHookAPI.Status.isXposedModuleActive -> R.drawable.bg_green_round
-                else -> R.drawable.bg_dark_round
+        val enable = item.ncInfo.importance == 0
+        launch {
+            val success = withContext(Dispatchers.IO) {
+                if (enable) nc.enableSpecificNotification(item)
+                else nc.disableSpecificNotification(item)
             }
-        )
-        binding.mainImgStatus.setImageResource(
-            when {
-                YukiHookAPI.Status.isXposedModuleActive && !androidRestartNeeded -> R.drawable.ic_success
-                else -> R.drawable.ic_warn
-            }
-        )
-        binding.mainTextStatus.text = getString(
-            when {
-                YukiHookAPI.Status.isXposedModuleActive && androidRestartNeeded -> R.string.try_reboot
-                YukiHookAPI.Status.isXposedModuleActive -> R.string.module_is_active
-                else -> R.string.module_is_not_active
-            })
-        showView(YukiHookAPI.Status.isXposedModuleActive, binding.mainTextApiWay)
-        binding.mainTextApiWay.text =
-            getString(R.string.xposed_framework_version,
-                Executor.name,
-                Executor.apiLevel
-            )
 
-        window.statusBarColor = getColor(
-            when {
-                YukiHookAPI.Status.isXposedModuleActive &&  androidRestartNeeded -> R.color.yellow
-                YukiHookAPI.Status.isXposedModuleActive -> R.color.green
-                else -> R.color.gray
+            if (!success) {
+                Toast.makeText(
+                    this@MainActivity,
+                    getString(R.string.toggle_failed, item.appName, item.ncInfo.channelName),
+                    Toast.LENGTH_SHORT
+                ).show()
+                return@launch
             }
-        )
+
+            item.ncInfo.importance = if (enable) 3 else 0
+            holder.adpAppStatus.apply {
+                text = if (enable) openHint else closeHint
+                setTextColor(getColor(if (enable) R.color.green else R.color.colorTextRed))
+            }
+        }
     }
+
+    private fun describeStateHint(state: FrameworkStatus.State): String = getString(
+        when (state) {
+            FrameworkStatus.State.INACTIVE -> R.string.hint_not_active
+            FrameworkStatus.State.NOT_IN_SCOPE -> R.string.hint_not_in_scope
+            FrameworkStatus.State.RESTART_NEEDED -> R.string.hint_restart_needed
+            FrameworkStatus.State.ACTIVE -> R.string.hint_ready
+        }
+    )
+
+    private fun refreshState() {
+        val state = FrameworkStatus.state
+
+        val (bgRes, iconRes, textRes, colorRes) = when (state) {
+            FrameworkStatus.State.ACTIVE ->
+                StatusStyle(R.drawable.bg_green_round, R.drawable.ic_success, R.string.module_is_active, R.color.green)
+            FrameworkStatus.State.RESTART_NEEDED ->
+                StatusStyle(R.drawable.bg_yellow_round, R.drawable.ic_warn, R.string.try_reboot, R.color.yellow)
+            FrameworkStatus.State.NOT_IN_SCOPE ->
+                StatusStyle(R.drawable.bg_dark_round, R.drawable.ic_warn, R.string.module_not_in_scope, R.color.gray)
+            FrameworkStatus.State.INACTIVE ->
+                StatusStyle(R.drawable.bg_dark_round, R.drawable.ic_warn, R.string.module_is_not_active, R.color.gray)
+        }
+
+        binding.mainStatus.setBackgroundResource(bgRes)
+        binding.mainImgStatus.setImageResource(iconRes)
+        binding.mainTextStatus.text = getString(textRes)
+        // Android 15 起 window.statusBarColor 已失效，改由 BaseActivity 的 insets scrim 着色
+        setStatusBarTint(getColor(colorRes))
+
+        val description = FrameworkStatus.describe()
+        val visible = description.isNotEmpty()
+        showView(visible, binding.mainTextApiWay)
+        if (visible) {
+            binding.mainTextApiWay.text = getString(R.string.xposed_framework_version, description)
+        }
+    }
+
+    private data class StatusStyle(
+        val background: Int,
+        val icon: Int,
+        val text: Int,
+        val color: Int
+    )
 
     override fun onResume() {
         super.onResume()
+        channelName = PreferenceManager.getDefaultSharedPreferences(this)
+            .getString("search_name", defaultChannelName)
+            .orEmpty()
+            .ifEmpty { defaultChannelName }
+
+        FrameworkStatus.addListener(statusListener)
+        FrameworkStatus.refresh()
         refreshState()
-        dataChannel("android").wait("${BuildConfig.APPLICATION_ID}_rec") {
-            androidRestartNeeded = false
-            refreshState()
-        }
-        dataChannel("android").put("${BuildConfig.APPLICATION_ID}_send")
-        channelName = PreferenceManager.getDefaultSharedPreferences(this).getString("search_name", defaultChannelName).toString()
+    }
+
+    override fun onPause() {
+        super.onPause()
+        FrameworkStatus.removeListener(statusListener)
+    }
+
+    override fun onDestroy() {
+        super.onDestroy()
+        cancel()
     }
 }
