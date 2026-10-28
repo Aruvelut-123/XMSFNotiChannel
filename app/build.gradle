@@ -12,15 +12,9 @@ android {
         applicationId "com.gswxxn.xmsfnotichannel"
         minSdk 28
         targetSdk 37
-        versionCode 154
-        versionName "1.5.4"
+        versionCode 153
+        versionName "1.5.3"
         testInstrumentationRunner "androidx.test.runner.AndroidJUnitRunner"
-
-        // 关键：把 libxposed 入口类钉死在主 dex（classes.dex）。
-        // LSPosed 加载模块时只读 META-INF/xposed/java_init.list 里的类名，
-        // 并用主 dex 的类加载器去 Class.forName；入口类一旦被 R8 排到
-        // classes2+ 就会 ClassNotFoundException，模块被静默跳过（连日志都没有）。
-        multiDexKeepProguard file('multidex-keep.pro')
     }
 
     signingConfigs {
