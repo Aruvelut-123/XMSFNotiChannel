@@ -1,7 +1,8 @@
 name: Build Release APK
 
-# 打 tag（v*）或手动触发时构建 release 包，并附到 GitHub Release 上。
-# 也支持在 Actions 页面手动点 Run workflow 直接出包。
+# 打 tag（v*）或手动触发时构建 release 包，tag 触发时还会附到 GitHub Release。
+# 说明：GitHub Actions 的 if/env 表达式里不能直接判断 secrets，
+# 因此签名相关一律通过 env 注入，在 shell 里判断是否为空。
 on:
   push:
     tags:
@@ -9,7 +10,7 @@ on:
   workflow_dispatch:
     inputs:
       version_suffix:
-        description: '文件名后缀（留空则用 versionName）'
+        description: '文件名后缀（留空则不加后缀）'
         required: false
         default: ''
 
@@ -34,7 +35,7 @@ jobs:
           java-version: '21'
 
       - name: Set up Android SDK
-        uses: android-actions/setup-android@v3
+        uses: actions/setup-android@v3
         with:
           # 新版 cmdline-tools 已移除 "tools" 包，用默认值会让 action 直接失败
           packages: 'platform-tools'
@@ -51,15 +52,21 @@ jobs:
       - name: Grant execute permission for gradlew
         run: chmod +x gradlew
 
-      # 签名优先用仓库 Secrets；没配置时 build.gradle 会自动退回 debug 证书
-      - name: Decode signing keystore
-        if: ${{ secrets.SIGNING_KEY_STORE_BASE64 != '' }}
+      # 有 Secrets 时解码出正式签名证书；没有则 build.gradle 自动退回 debug 证书
+      - name: Prepare signing keystore
+        env:
+          KS_BASE64: ${{ secrets.SIGNING_KEY_STORE_BASE64 }}
         run: |
-          echo "${{ secrets.SIGNING_KEY_STORE_BASE64 }}" | base64 -d > "$RUNNER_TEMP/release.keystore"
+          if [ -n "$KS_BASE64" ]; then
+            echo "$KS_BASE64" | base64 -d > "$RUNNER_TEMP/release.keystore"
+            echo "keystore ready"
+          else
+            echo "no signing secrets, will fall back to debug keystore"
+          fi
 
       - name: Build release APK
         env:
-          SIGNING_KEY_STORE_PATH: ${{ secrets.SIGNING_KEY_STORE_BASE64 != '' && format('{0}/release.keystore', runner.temp) || '' }}
+          SIGNING_KEY_STORE_PATH: ${{ runner.temp }}/release.keystore
           SIGNING_STORE_PASSWORD: ${{ secrets.SIGNING_STORE_PASSWORD }}
           SIGNING_KEY_ALIAS: ${{ secrets.SIGNING_KEY_ALIAS }}
           SIGNING_KEY_PASSWORD: ${{ secrets.SIGNING_KEY_PASSWORD }}
@@ -76,10 +83,15 @@ jobs:
 
       - name: Rename artifact
         id: rename
+        env:
+          SUFFIX: ${{ github.event.inputs.version_suffix }}
         run: |
-          SUFFIX="${{ github.event.inputs.version_suffix }}"
           APK=$(find app/build/outputs/apk/release -name '*.apk' | head -1)
-          NAME="XMSFNotiChannel-release${SUFFIX:+-$SUFFIX}.apk"
+          if [ -n "$SUFFIX" ]; then
+            NAME="XMSFNotiChannel-release-$SUFFIX.apk"
+          else
+            NAME="XMSFNotiChannel-release.apk"
+          fi
           cp "$APK" "app/build/outputs/apk/release/$NAME"
           echo "name=$NAME" >> "$GITHUB_OUTPUT"
           echo "renamed to $NAME"
