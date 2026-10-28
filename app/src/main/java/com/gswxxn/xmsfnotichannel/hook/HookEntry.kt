@@ -36,6 +36,22 @@ import com.highcapable.yukihookapi.hook.xposed.YukiHookXposedModule
  * **只改本模块自己的调用**（`Binder.getCallingUid() == moduleUid`），
  * 其余进程一律透传，把对系统的影响降到最小。
  *
+ * ## 为什么必须延迟 hook（1.5.2 的关键修复）
+ *
+ * YukiHook 的 `encase { }` 只会在**第一次**收到 `PackageParam` 时执行一次。
+ * 在 system_server 里这次回调发生在 `SystemServer.createSystemContext()` 阶段
+ * （见 `LibXposedBaseEntry#onSystemServerStarting`），此时
+ * `SystemServiceManager` 还没 `startService` 到 `NotificationManagerService`，
+ * 直接 `Class.forName(...)` 必然 `ClassNotFoundException`。
+ *
+ * 同机器上其他模块的日志也印证了这一点：
+ * `Reflection ABSENT: com.android.server.notification.NotificationManagerService
+ * cause=java.lang.ClassNotFoundException`。
+ *
+ * 所以这里改成：先 hook `SystemServiceManager#startService`，
+ * 等目标类真正被系统实例化（`getServiceClass() == TARGET_CLASS`）的那一刻
+ * 再把校验方法挂上去。这样既不轮询、不占 CPU，也完全避开时序问题。
+ *
  * ## 状态回写
  *
  * hook 装成功后往 `module_status` 远程偏好写 `hook_ready=true`，
@@ -54,6 +70,9 @@ object HookEntry : YukiHookXposedModule {
     private const val TARGET_CLASS =
         "com.android.server.notification.NotificationManagerService"
 
+    /** 系统服务管理器，用来等待 [TARGET_CLASS] 被真正实例化的时机。 */
+    private const val SERVICE_MANAGER_CLASS = "com.android.server.SystemServiceManager"
+
     /**
      * 需要拦截的校验方法名。
      * 只按方法名匹配：这些方法的签名在 Android 12～17 之间保持稳定，
@@ -67,60 +86,131 @@ object HookEntry : YukiHookXposedModule {
         "assertCallerIsSystemOrSystemUiOrShell"
     )
 
+    /** 防止 startService 被多次触发时重复挂 hook。 */
+    @Volatile
+    private var installed = false
+
     override fun onHook() = encase {
         loadSystem {
-            hookAllChecks()
+            awaitTargetService()
         }
     }
 
     /**
-     * `Member.hook` / `HookParam.result` 都是 [PackageParam] 的成员扩展，
-     * 必须在 `loadSystem { }` 的接收者作用域内调用。
+     * 挂一个「等待目标服务就绪」的钩子。
+     *
+     * 优先用 `SystemServiceManager#startService(Class)`：
+     * 系统每启动一个服务都会经过它，此时目标类一定已经加载完成。
+     * 如果这个入口拿不到（ROM 改签名等），退化为 `startBootPhase` ——
+     * 那时 `PHASE_BOOT_COMPLETED` 已经走完，目标服务必然就位。
      */
-    private fun PackageParam.hookAllChecks() {
+    private fun PackageParam.awaitTargetService() {
         val moduleUid = runCatching { module.appInfo.uid }.getOrDefault(-1)
-        val hooked = mutableListOf<String>()
 
-        runCatching {
-            val clazz = Class.forName(TARGET_CLASS, false, hostClassLoader)
+        val waitHookInstalled = runCatching {
+            val manager = Class.forName(SERVICE_MANAGER_CLASS, false, hostClassLoader)
 
-            TARGET_METHODS.forEach { name ->
-                clazz.declaredMethods
-                    .filter { it.name == name }
-                    .forEach { method ->
-                        runCatching {
-                            method.isAccessible = true
-                            method.hook {
-                                before {
-                                    // 只有本模块发起的 Binder 调用才伪装成系统，其余原样透传
-                                    if (Binder.getCallingUid() == moduleUid) result = true
-                                }
-                            }
-                            hooked += name
-                        }.onFailure {
-                            Log.w(TAG, "hook $TARGET_CLASS#$name failed", it)
-                        }
-                    }
+            // 首选：startService(Class) —— 参数就是即将启动的服务类
+            val startService = manager.declaredMethods.firstOrNull {
+                it.name == "startService" &&
+                    it.parameterTypes.size == 1 &&
+                    it.parameterTypes[0] == Class::class.java
             }
-        }.onFailure { Log.e(TAG, "loadSystem failed", it) }
+
+            if (startService != null) {
+                startService.isAccessible = true
+                startService.hook {
+                    after {
+                        runCatching {
+                            val started = args.firstOrNull() as? Class<*> ?: return@runCatching
+                            if (started.name == TARGET_CLASS) hookTargets(moduleUid)
+                        }.onFailure { Log.w(TAG, "startService callback failed", it) }
+                    }
+                }
+                Log.i(TAG, "waiting $TARGET_CLASS via $SERVICE_MANAGER_CLASS#startService")
+                true
+            } else {
+                // 兜底：每次 boot phase 推进时检查一次目标类是否已可加载
+                val startBootPhase = manager.declaredMethods.firstOrNull {
+                    it.name == "startBootPhase" && it.parameterTypes.size == 1
+                }
+                if (startBootPhase == null) {
+                    Log.e(TAG, "no usable entry on $SERVICE_MANAGER_CLASS")
+                    false
+                } else {
+                    startBootPhase.isAccessible = true
+                    startBootPhase.hook {
+                        after { runCatching { hookTargets(moduleUid, quiet = true) } }
+                    }
+                    Log.i(TAG, "waiting $TARGET_CLASS via $SERVICE_MANAGER_CLASS#startBootPhase")
+                    true
+                }
+            }
+        }.getOrElse {
+            Log.e(TAG, "failed to install wait hook", it)
+            false
+        }
+
+        if (!waitHookInstalled) {
+            // 连等待钩子都挂不上时，仍然试一次直接挂载，至少留下日志便于定位
+            hookTargets(moduleUid)
+        }
+    }
+
+    /**
+     * 真正挂载校验方法。可被多次调用，内部有 [installed] 幂等保护。
+     *
+     * @param quiet 为 true 时，在目标类尚未加载的情况下不写状态、不打错误日志。
+     */
+    private fun PackageParam.hookTargets(moduleUid: Int, quiet: Boolean = false) {
+        if (installed) return
+
+        val clazz = runCatching {
+            Class.forName(TARGET_CLASS, false, hostClassLoader)
+        }.getOrElse {
+            if (!quiet) Log.e(TAG, "$TARGET_CLASS not loadable yet", it)
+            return
+        }
+
+        val hooked = mutableListOf<String>()
+        TARGET_METHODS.forEach { name ->
+            clazz.declaredMethods
+                .filter { it.name == name }
+                .forEach { method ->
+                    runCatching {
+                        method.isAccessible = true
+                        method.hook {
+                            before {
+                                // 只有本模块发起的 Binder 调用才伪装成系统，其余原样透传
+                                if (Binder.getCallingUid() == moduleUid) result = true
+                            }
+                        }
+                        hooked += name
+                    }.onFailure {
+                        Log.w(TAG, "hook $TARGET_CLASS#$name failed", it)
+                    }
+                }
+        }
 
         val distinct = hooked.distinct()
         if (distinct.isEmpty()) {
-            Log.e(TAG, "no method hooked in $TARGET_CLASS")
-        } else {
-            Log.i(TAG, "hooked $distinct in $TARGET_CLASS for uid=$moduleUid")
+            if (!quiet) Log.e(TAG, "no method hooked in $TARGET_CLASS")
+            return
         }
-        writeStatus(ready = distinct.isNotEmpty(), methods = distinct)
+
+        installed = true
+        Log.i(TAG, "hooked $distinct in $TARGET_CLASS for uid=$moduleUid")
+        writeStatus(methods = distinct)
     }
 
     /**
      * 把装载结果写进远程偏好，供 App 侧读取。
      * 写失败不影响 hook 本身，异常全部吞掉。
      */
-    private fun PackageParam.writeStatus(ready: Boolean, methods: List<String>) {
+    private fun PackageParam.writeStatus(methods: List<String>) {
         runCatching {
             prefs(ModuleConstants.PREFS_NAME).edit {
-                putBoolean(ModuleConstants.KEY_HOOK_READY, ready)
+                putBoolean(ModuleConstants.KEY_HOOK_READY, true)
                 putLong(ModuleConstants.KEY_LOADED_AT, System.currentTimeMillis())
                 putString(ModuleConstants.KEY_TARGET_CLASS, TARGET_CLASS)
                 putString(ModuleConstants.KEY_HOOKED_METHODS, methods.joinToString(","))
