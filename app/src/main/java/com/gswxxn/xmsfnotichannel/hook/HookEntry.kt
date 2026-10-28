@@ -5,7 +5,7 @@ import android.util.Log
 import com.gswxxn.xmsfnotichannel.utils.ModuleConstants
 import com.highcapable.yukihookapi.annotation.xposed.YukiHookLibXposedEntry
 import com.highcapable.yukihookapi.hook.factory.encase
-import com.highcapable.yukihookapi.hook.param.hook
+import com.highcapable.yukihookapi.hook.param.PackageParam
 import com.highcapable.yukihookapi.hook.xposed.YukiHookXposedModule
 
 /**
@@ -69,50 +69,55 @@ object HookEntry : YukiHookXposedModule {
 
     override fun onHook() = encase {
         loadSystem {
-            val moduleUid = runCatching { module.appInfo.uid }.getOrDefault(-1)
-            val hooked = mutableListOf<String>()
-
-            runCatching {
-                val clazz = Class.forName(TARGET_CLASS, false, hostClassLoader)
-
-                TARGET_METHODS.forEach { name ->
-                    clazz.declaredMethods
-                        .filter { it.name == name }
-                        .forEach { method ->
-                            runCatching {
-                                method.isAccessible = true
-                                method.hook {
-                                    before { param ->
-                                        // 只有本模块发起的 Binder 调用才伪装成系统，其余原样透传
-                                        if (Binder.getCallingUid() == moduleUid) param.resultTrue()
-                                    }
-                                }
-                                hooked += name
-                            }.onFailure {
-                                Log.w(TAG, "hook $TARGET_CLASS#$name failed", it)
-                            }
-                        }
-                }
-            }.onFailure { Log.e(TAG, "loadSystem failed", it) }
-
-            val distinct = hooked.distinct()
-            if (distinct.isEmpty()) {
-                Log.e(TAG, "no method hooked in $TARGET_CLASS")
-            } else {
-                Log.i(TAG, "hooked $distinct in $TARGET_CLASS for uid=$moduleUid")
-            }
-            writeStatus(ready = distinct.isNotEmpty(), methods = distinct)
+            hookAllChecks()
         }
+    }
+
+    /**
+     * `Member.hook` / `HookParam.result` 都是 [PackageParam] 的成员扩展，
+     * 必须在 `loadSystem { }` 的接收者作用域内调用。
+     */
+    private fun PackageParam.hookAllChecks() {
+        val moduleUid = runCatching { module.appInfo.uid }.getOrDefault(-1)
+        val hooked = mutableListOf<String>()
+
+        runCatching {
+            val clazz = Class.forName(TARGET_CLASS, false, hostClassLoader)
+
+            TARGET_METHODS.forEach { name ->
+                clazz.declaredMethods
+                    .filter { it.name == name }
+                    .forEach { method ->
+                        runCatching {
+                            method.isAccessible = true
+                            method.hook {
+                                before {
+                                    // 只有本模块发起的 Binder 调用才伪装成系统，其余原样透传
+                                    if (Binder.getCallingUid() == moduleUid) result = true
+                                }
+                            }
+                            hooked += name
+                        }.onFailure {
+                            Log.w(TAG, "hook $TARGET_CLASS#$name failed", it)
+                        }
+                    }
+            }
+        }.onFailure { Log.e(TAG, "loadSystem failed", it) }
+
+        val distinct = hooked.distinct()
+        if (distinct.isEmpty()) {
+            Log.e(TAG, "no method hooked in $TARGET_CLASS")
+        } else {
+            Log.i(TAG, "hooked $distinct in $TARGET_CLASS for uid=$moduleUid")
+        }
+        writeStatus(ready = distinct.isNotEmpty(), methods = distinct)
     }
 
     /**
      * 把装载结果写进远程偏好，供 App 侧读取。
      * 写失败不影响 hook 本身，异常全部吞掉。
      */
-    private fun com.highcapable.yukihookapi.hook.param.PackageParam.writeStatus(
-        ready: Boolean,
-        methods: List<String>
-    ) {
+    private fun PackageParam.writeStatus(ready: Boolean, methods: List<String>) {
         runCatching {
             prefs(ModuleConstants.PREFS_NAME).edit {
                 putBoolean(ModuleConstants.KEY_HOOK_READY, ready)
