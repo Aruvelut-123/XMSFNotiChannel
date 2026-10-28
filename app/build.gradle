@@ -1,5 +1,6 @@
 plugins {
     id 'com.android.application'
+    id 'org.jetbrains.kotlin.android'
 }
 
 android {
@@ -11,10 +12,11 @@ android {
         applicationId "com.gswxxn.xmsfnotichannel"
         minSdk 28
         targetSdk 37
-        versionCode 140
-        versionName "1.4.0"
+        versionCode 150
+        versionName "1.5.0"
         testInstrumentationRunner "androidx.test.runner.AndroidJUnitRunner"
     }
+
     buildTypes {
         release {
             minifyEnabled true
@@ -22,30 +24,46 @@ android {
             proguardFiles getDefaultProguardFile('proguard-android-optimize.txt'), 'proguard-rules.pro'
         }
     }
+
     compileOptions {
         sourceCompatibility JavaVersion.VERSION_21
         targetCompatibility JavaVersion.VERSION_21
     }
+
     buildFeatures {
         viewBinding true
         buildConfig true
     }
+
     packaging {
         resources {
             merges += "META-INF/xposed/*"
         }
     }
+
     lint {
         abortOnError = false
         checkReleaseBuilds = false
     }
 }
 
+kotlin {
+    compilerOptions {
+        jvmTarget = org.jetbrains.kotlin.gradle.dsl.JvmTarget.JVM_21
+    }
+}
+
 dependencies {
-    // 现代 Xposed API：仅编译期可见，运行时由框架注入
+    // YukiHook（基于 libxposed API 102 的运行时）
+    implementation 'com.highcapable.yukihookapi:yukihook-runtime-libxposed:1.5.0'
+    // YukiHook 的 API 本体：runtime-libxposed 只在 runtime 作用域传递 core，
+    // 编译期拿不到 YukiHookXposedModule 等符号，必须显式声明
+    implementation 'com.highcapable.yukihookapi:yukihook-core:1.5.0'
+    // libxposed API：仅编译期可见，运行时由框架注入
     compileOnly 'io.github.libxposed:api:102.0.0'
-    // 框架通信（查询激活状态 / 远程偏好）
+    // 框架通信（查询激活状态）
     implementation 'io.github.libxposed:service:102.0.0'
+
     // 突破 Android 11+ hidden API 限制（ParceledListSlice#getList、ServiceManager 等）
     implementation 'org.lsposed.hiddenapibypass:hiddenapibypass:6.2'
 
