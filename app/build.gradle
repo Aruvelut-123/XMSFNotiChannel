@@ -12,16 +12,39 @@ android {
         applicationId "com.gswxxn.xmsfnotichannel"
         minSdk 28
         targetSdk 37
-        versionCode 150
-        versionName "1.5.0"
+        versionCode 151
+        versionName "1.5.1"
         testInstrumentationRunner "androidx.test.runner.AndroidJUnitRunner"
+    }
+
+    signingConfigs {
+        // CI 用仓库 Secrets 注入；本地无 secrets 时该配置不生效，不会影响 debug 构建
+        release {
+            def ksPath = System.getenv("SIGNING_KEY_STORE_PATH")
+            def ksFile = ksPath != null ? file(ksPath) : null
+            if (ksFile != null && ksFile.exists()) {
+                storeFile ksFile
+                storePassword System.getenv("SIGNING_STORE_PASSWORD")
+                keyAlias System.getenv("SIGNING_KEY_ALIAS")
+                keyPassword System.getenv("SIGNING_KEY_PASSWORD")
+            }
+        }
     }
 
     buildTypes {
         release {
-            minifyEnabled true
-            shrinkResources true
+            // 开源软件，不做混淆：保持符号完整，便于用户审计与排查问题
+            minifyEnabled false
+            shrinkResources false
             proguardFiles getDefaultProguardFile('proguard-android-optimize.txt'), 'proguard-rules.pro'
+            // 有签名证书时用它签名，否则退回 debug 证书（CI 默认走 debug 证书，便于直接安装测试）
+            def ksPath = System.getenv("SIGNING_KEY_STORE_PATH")
+            signingConfig = (ksPath != null && file(ksPath).exists())
+                ? signingConfigs.release
+                : signingConfigs.debug
+        }
+        debug {
+            // debug 包名一致，便于覆盖安装
         }
     }
 

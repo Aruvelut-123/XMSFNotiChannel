@@ -99,7 +99,11 @@ object FrameworkStatus {
         }
 
         val inScope = runCatching {
-            svc.scope?.contains(ModuleConstants.SCOPE_SYSTEM) == true
+            val scopes = svc.scope
+            scopes != null && (
+                scopes.contains(ModuleConstants.SCOPE_SYSTEM) ||
+                    scopes.contains(ModuleConstants.SCOPE_ANDROID)
+                )
         }.getOrDefault(false)
 
         if (!inScope) {

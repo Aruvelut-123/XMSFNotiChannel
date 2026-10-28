@@ -13,20 +13,43 @@
 ## 使用方法
 
 1. 在 Xposed 管理器（如 LSPosed）中激活模块
-2. 作用域勾选 `系统框架(android)`
+2. 作用域勾选 `系统框架(system)`
 3. 重启手机（现代 API 下 hook 在 system_server 启动时装载，必须重启）
 
 ## 实现原理
 
-模块在 `system_server` 中 hook 了 `NotificationManagerService#isCallerSystemOrPhone()`：
+模块在 `system_server` 中拦截 `NotificationManagerService` 的一组校验方法，
+**仅当 Binder 调用者为本模块时**才返回 `true`，其余情况原样透传：
 
-- 当 Binder 调用者为本模块时返回 `true`，其余情况原样透传
-- 应用侧再通过 `INotificationManager` 读取 / 修改各应用的通知通道重要性
+| 方法 | 作用 |
+| --- | --- |
+| `isCallerSystemOrPhone()` | 核心闸门，Android 17 上所有相关校验最终都收敛到这里 |
+| `isCallerSystem()` | 少数路径直接判断 |
+| `isCallerSystemOrSystemUi()` | 同上 |
+| `isCallerSystemOrSystemUiOrShell()` | 同上 |
+| `assertCallerIsSystemOrSystemUiOrShell()` | `updateNotificationChannelForPackage` 的前置断言 |
 
-Android 17 上系统的所有相关校验都收敛到这一个方法，因此单点 hook 即可覆盖
-`getNotificationChannelsForPackage` 与 `updateNotificationChannelForPackage`。
+应用侧再通过 `INotificationManager` 读取 / 修改各应用的通知通道重要性：
+
+- `getNotificationChannelsForPackage` → `enforceSystemOrSystemUI()` → `isCallerSystemOrPhone()`
+- `getNotificationChannelGroupsForPackage` → 同上
+- `updateNotificationChannelForPackage` → `assertCallerIsSystemOrSystemUiOrShell()` → `isCallerSystemOrPhone()`
+
+hook 成功后模块会把 `hook_ready=true` 写入 `module_status` 远程偏好，
+App 读取该值把状态条显示为「已激活」。
 
 ## 版本适配说明
+
+### 1.5.1 — hook 目标收敛与 CI 构建
+| 变更 | 原因 |
+| --- | --- |
+| hook 目标由 1 个方法扩展到 5 个校验方法 | 覆盖 `isCallerSystem*` 系列与 `assertCallerIsSystemOrSystemUiOrShell`，避免个别路径漏校验 |
+| 修复作用域判定 `SCOPE_SYSTEM` 由 `android` 改为 `system` | 模块声明的静态作用域是 `system`，常量写 `android` 会导致界面永远提示「未包含系统框架」 |
+| `scope.list` 补回 `android` | `system` 为 system_server 虚拟包名，`android` 作兼容别名一并声明 |
+| hook 成功后写入 `hook_ready` | 之前从未写过，界面只能停在「需重启」，永远不会变成已激活 |
+| `staticScope` 改为 `false` | 与同机器上可正常装载的模块保持一致，由管理器按作用域注入 |
+| release 不再混淆 | 开源软件，保持符号完整便于审计；同时避免 YukiHook 反射构造 hooker 失败 |
+| 新增 release 构建 workflow | 打 `v*` tag 或手动触发时产出 release APK 并附到 GitHub Release |
 
 ### 1.5.0 — 迁移到 YukiHookAPI 1.5.x
 
