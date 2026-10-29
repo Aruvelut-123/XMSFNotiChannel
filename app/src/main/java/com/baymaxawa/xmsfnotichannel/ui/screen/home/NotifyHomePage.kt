@@ -218,19 +218,13 @@ private fun StatusCard(
     modifier: Modifier = Modifier,
 ) {
     val active = ui.state == FRAMEWORK_ACTIVE
-    val tint = if (active) {
-        MiuixTheme.colorScheme.primary
-    } else {
-        MiuixTheme.colorScheme.error
-    }
     Card(
         modifier = modifier,
         colors = CardDefaults.defaultColors(color = MiuixTheme.colorScheme.secondaryContainer),
     ) {
         BasicComponent(
-            title = ui.stateLabel,
+            title = if (active) "✓ ${ui.stateLabel}" else ui.stateLabel,
             summary = ui.versionLine,
-            titleColor = tint,
             onClick = onRecheck,
         )
         BasicComponent(

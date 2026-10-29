@@ -20,17 +20,23 @@ android {
     }
 
     signingConfigs {
-        create("release") {
-            storeFile = file("../release.keystore")
-            storePassword = System.getenv("KEYSTORE_PASSWORD")
-            keyAlias = System.getenv("KEY_ALIAS") ?: "release"
-            keyPassword = System.getenv("KEY_PASSWORD")
+        // 固定签名：keystore 随仓库提交，保证任何机器 / 任何一次 CI 产出的 APK
+        // 签名完全一致，覆盖安装不会再报「签名不一致」。
+        // 若想改用 Secrets 注入，删掉这一份、恢复用环境变量读路径即可。
+        create("shared") {
+            storeFile = file("../xmsfnotichannel.keystore")
+            storePassword = "xmsfnotichannel"
+            keyAlias = "xmsfnotichannel"
+            keyPassword = "xmsfnotichannel"
         }
     }
-
     buildTypes {
+        debug {
+            // debug 也用同一份签名，否则 debug / release 互相覆盖不了
+            signingConfig = signingConfigs.getByName("shared")
+        }
         release {
-            signingConfig = signingConfigs.getByName("release")
+            signingConfig = signingConfigs.getByName("shared")
             isMinifyEnabled = true
             isShrinkResources = true
             proguardFiles(

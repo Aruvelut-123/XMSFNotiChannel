@@ -37,11 +37,8 @@ jobs:
       - name: Setup Gradle
         uses: gradle/actions/setup-gradle@v6
 
-      - name: 解码签名密钥
-        run: |
-          $bytes = [Convert]::FromBase64String("${{ secrets.KEYSTORE_BASE64 }}")
-          [IO.File]::WriteAllBytes("release.keystore", $bytes)
-        shell: pwsh
+      # 签名已改为仓库内置的 xmsfnotichannel.keystore（固定指纹），
+      # 不再需要从 Secrets 解码，避免未配置 Secret 时这一步直接失败。
 
       - name: 读取当前版本号
         id: get_version
@@ -97,10 +94,6 @@ jobs:
         run: |
           chmod +x gradlew
           ./gradlew assembleRelease
-        env:
-          KEYSTORE_PASSWORD: ${{ secrets.KEYSTORE_PASSWORD }}
-          KEY_ALIAS: ${{ secrets.KEY_ALIAS }}
-          KEY_PASSWORD: ${{ secrets.KEY_PASSWORD }}
 
       - name: 重命名 APK
         run: |
