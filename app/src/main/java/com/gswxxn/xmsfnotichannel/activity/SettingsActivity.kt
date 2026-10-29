@@ -27,7 +27,7 @@ import kotlinx.coroutines.withContext
  */
 class SettingsActivity : BaseActivity() {
 
-    private val componentName by lazy { ComponentName(this, MainActivity::class.java) }
+    private val targetComponent by lazy { ComponentName(this, MainActivity::class.java) }
 
     private var hideIcon by mutableStateOf(false)
     private var editing by mutableStateOf(false)
@@ -42,7 +42,7 @@ class SettingsActivity : BaseActivity() {
     override fun onCreateContent() {
         val pref = PreferenceManager.getDefaultSharedPreferences(this)
 
-        hideIcon = packageManager.getComponentEnabledSetting(componentName) ==
+        hideIcon = packageManager.getComponentEnabledSetting(targetComponent) ==
             PackageManager.COMPONENT_ENABLED_STATE_DISABLED
         ruleLabel = currentRuleLabel(pref.getString("search_name", defaultChannelName).orEmpty())
         frameworkDesc = FrameworkStatus.describe()
@@ -55,7 +55,7 @@ class SettingsActivity : BaseActivity() {
                     ruleLabel = ruleLabel,
                     permissionGranted = permissionGranted,
                     hideIcon = hideIcon,
-                    onHideIconChange = ::setHideIcon,
+                    onHideIconChange = ::applyHideIcon,
                     onBack = { finish() },
                     onOpenAbout = {
                         startActivity(Intent(this, AboutPageActivity::class.java))
@@ -98,14 +98,14 @@ class SettingsActivity : BaseActivity() {
     override fun onResume() {
         super.onResume()
         frameworkDesc = FrameworkStatus.describe()
-        hideIcon = packageManager.getComponentEnabledSetting(componentName) ==
+        hideIcon = packageManager.getComponentEnabledSetting(targetComponent) ==
             PackageManager.COMPONENT_ENABLED_STATE_DISABLED
     }
 
     private fun currentRuleLabel(value: String): String =
         value.ifBlank { ChannelMatcher.defaultDescription() }
 
-    private fun setHideIcon(hidden: Boolean) {
+    private fun applyHideIcon(hidden: Boolean) {
         hideIcon = hidden
         val newState = if (hidden) {
             PackageManager.COMPONENT_ENABLED_STATE_DISABLED
@@ -113,7 +113,7 @@ class SettingsActivity : BaseActivity() {
             PackageManager.COMPONENT_ENABLED_STATE_DEFAULT
         }
         packageManager.setComponentEnabledSetting(
-            componentName,
+            targetComponent,
             newState,
             PackageManager.DONT_KILL_APP
         )
