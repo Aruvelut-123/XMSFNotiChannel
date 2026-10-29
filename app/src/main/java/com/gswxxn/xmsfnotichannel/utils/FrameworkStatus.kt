@@ -141,12 +141,20 @@ object FrameworkStatus {
             f.exists() && f.readText().contains("${ModuleConstants.KEY_HOOK_READY}=true")
         }.getOrDefault(false)
 
-        val hookReady = hookReadyByPrefs || hookReadyByFile || hookReadyBySystemFile
+        // 降级 3：/data/local/tmp 下的状态文件（实测唯一 App 真能读到的位置）
+        val hookReadyByTmpFile = runCatching {
+            val f = java.io.File(ModuleConstants.STATUS_FILE_TMP)
+            f.exists() && f.readText().contains("${ModuleConstants.KEY_HOOK_READY}=true")
+        }.getOrDefault(false)
+
+        val hookReady =
+            hookReadyByPrefs || hookReadyByFile || hookReadyBySystemFile || hookReadyByTmpFile
 
         AppProbe.mark(
             "FrameworkStatus:refresh",
             "inScope=$inScope prefs=$hookReadyByPrefs file=$hookReadyByFile " +
-                "sysFile=$hookReadyBySystemFile name=$frameworkName ver=$frameworkVersion api=$apiVersion"
+                "sysFile=$hookReadyBySystemFile tmpFile=$hookReadyByTmpFile " +
+                "name=$frameworkName ver=$frameworkVersion api=$apiVersion"
         )
 
         state = if (hookReady) State.ACTIVE else State.RESTART_NEEDED

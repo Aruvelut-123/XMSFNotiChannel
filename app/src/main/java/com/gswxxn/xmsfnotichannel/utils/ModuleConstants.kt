@@ -38,6 +38,17 @@ object ModuleConstants {
      */
     const val STATUS_FILE_NAME = "hook_status.txt"
 
+    /**
+     * `/data/local/tmp` 下的状态文件。
+     *
+     * 为什么还要这一份：本机实测 system_server 写
+     * `/data/user/0/<包名>/files/` 会被 SELinux 拒绝（`EACCES Permission denied`），
+     * `/data/system/` 又因目录 0700 普通 App 进不去。
+     * `/data/local/tmp` 的 SELinux 标签是 `shell_data_file`，
+     * system_server（untrusted_app 之外的 system 域）可写、App 侧也能读。
+     */
+    const val STATUS_FILE_TMP = "/data/local/tmp/xmsfnotichannel_status.txt"
+
     const val KEY_HOOK_READY = "hook_ready"
     const val KEY_LOADED_AT = "loaded_at"
     const val KEY_TARGET_CLASS = "target_class"

@@ -294,5 +294,16 @@ object HookEntry : YukiHookXposedModule {
                 "writeStatus:appDirFail", "err=${it::class.java.name}:${it.message}"
             )
         }
+
+        // 路径 4：/data/local/tmp（SELinux 允许 system_server 写、App 也能读）
+        runCatching {
+            val f = java.io.File(ModuleConstants.STATUS_FILE_TMP)
+            f.writeText(statusText)
+            runCatching { f.setReadable(true, false) }
+            DiagnosticProbe.mark("writeStatus:tmpOk", "path=${f.absolutePath}")
+        }.onFailure {
+            Log.w(TAG, "write tmp status file failed", it)
+            DiagnosticProbe.mark("writeStatus:tmpFail", "err=${it::class.java.name}:${it.message}")
+        }
     }
 }
