@@ -13,6 +13,7 @@ import com.gswxxn.xmsfnotichannel.databinding.ActivityMainBinding
 import com.gswxxn.xmsfnotichannel.databinding.AdapterConfigBinding
 import com.gswxxn.xmsfnotichannel.utils.AppInfoHelper
 import com.gswxxn.xmsfnotichannel.utils.AppProbe
+import com.gswxxn.xmsfnotichannel.utils.ChannelMatcher
 import com.gswxxn.xmsfnotichannel.utils.FrameworkStatus
 import com.gswxxn.xmsfnotichannel.utils.NCUtils
 import kotlinx.coroutines.CoroutineScope
@@ -26,7 +27,14 @@ import kotlinx.coroutines.withContext
 class MainActivity : BaseActivity(), CoroutineScope by MainScope() {
 
     companion object {
-        const val defaultChannelName = "运营消息"
+        /**
+         * 默认搜索规则。
+         *
+         * **空字符串表示使用 [com.gswxxn.xmsfnotichannel.utils.ChannelMatcher] 的内置关键词表**，
+         * 覆盖 运营消息 / 营销推广 / 活动 / 推荐 / 商城 / 直播 等一整类通道。
+         * 旧版本这里是单个词「运营消息」，只能命中一小部分，已废弃。
+         */
+        const val defaultChannelName = ""
     }
 
     private lateinit var binding: ActivityMainBinding
@@ -75,7 +83,7 @@ class MainActivity : BaseActivity(), CoroutineScope by MainScope() {
                 if (appInfoFilter.isEmpty()) {
                     Toast.makeText(
                         this@MainActivity,
-                        getString(R.string.no_channel_found, channelName),
+                        getString(R.string.no_channel_found, currentRuleLabel()),
                         Toast.LENGTH_LONG
                     ).show()
                 }
@@ -133,6 +141,10 @@ class MainActivity : BaseActivity(), CoroutineScope by MainScope() {
         setupList()
     }
 
+    /** 当前生效规则的可读描述，用于「未找到通道」提示 */
+    private fun currentRuleLabel(): String =
+        channelName.ifBlank { ChannelMatcher.defaultDescription() }
+
     private fun reportBulkResult(changed: Int) {
         val message = if (changed > 0) {
             getString(R.string.bulk_success, changed)
@@ -166,7 +178,7 @@ class MainActivity : BaseActivity(), CoroutineScope by MainScope() {
 
                     val openHint: String
                     val closeHint: String
-                    if (channelName == defaultChannelName) {
+                    if (channelName.isBlank()) {
                         holder.adpChannelInfo.visibility = View.GONE
                         openHint = getString(R.string.enabled_operation_notification)
                         closeHint = getString(R.string.disabled_operation_notification)

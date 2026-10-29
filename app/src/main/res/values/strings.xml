@@ -25,9 +25,11 @@
     <string name="alert_ok">确定</string>
     <string name="alert_cancel">取消</string>
     <string name="alert_reset">恢复默认</string>
-    <string name="can_not_be_empty">搜索名称不能为空</string>
-    <string name="searching_name">通知通道搜索名称</string>
-    <string name="searching_name_summary">支持正则匹配，同时匹配通道名与通道 ID</string>
+    <string name="searching_name">通知通道搜索规则</string>
+    <string name="searching_name_summary">留空 = 使用内置规则（运营消息 / 营销推广 / 活动 / 推荐 / 商城 / 直播 等一整类）；填写则按自定义正则进行包含匹配，同时匹配通道名与通道 ID。</string>
+    <string name="searching_name_hint">留空使用内置规则</string>
+    <string name="can_not_be_empty">搜索规则不能为空</string>
+    <string name="rule_internal">内置规则</string>
 
     <!-- 状态提示 -->
     <string name="hint_not_active">模块未激活，请在 Xposed 管理器中启用后重启</string>

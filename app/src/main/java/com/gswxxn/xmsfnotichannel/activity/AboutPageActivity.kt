@@ -56,16 +56,14 @@ class AboutPageActivity : BaseActivity() {
                     val pref =  PreferenceManager.getDefaultSharedPreferences(this@AboutPageActivity)
                     val input = EditText(this@AboutPageActivity).apply {
                         setText(pref.getString("search_name", defaultChannelName))
+                        hint = getString(R.string.searching_name_hint)
                     }
                     setTitle(getString(R.string.searching_name))
                     setMessage(getString(R.string.searching_name_summary))
                     setView(input)
                     setPositiveButton(getString(R.string.alert_ok)) { _, _ ->
-                        if (input.text.toString().isEmpty()) {
-                            Toast.makeText(this@AboutPageActivity, getString(R.string.can_not_be_empty), Toast.LENGTH_SHORT).show()
-                            return@setPositiveButton
-                        }
-                        pref.edit().putString("search_name", input.text.toString()).apply()
+                        // 允许留空：留空表示使用内置关键词表，不再强制非空
+                        pref.edit().putString("search_name", input.text.toString().trim()).apply()
                     }
                     setNegativeButton(getString(R.string.alert_cancel)) { dialog, _ ->
                         dialog.cancel()

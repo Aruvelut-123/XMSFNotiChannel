@@ -328,28 +328,28 @@ class NCUtils(private val context: Context) {
     }
 
     /**
-     * 按名称正则匹配通道。同时匹配通道名与通道 ID。
+     * 按名称筛选通道，同时匹配通道名与通道 ID。
+     *
+     * pattern 为空时走 [ChannelMatcher] 的内置关键词表（营销/推广/活动/推荐等），
+     * 非空时按用户自定义正则做包含匹配。
      */
     fun getNotificationChannelInfoByRegex(
         pkgName: String,
         channelNameRegex: String
     ): List<AppInfoHelper.NCInfo> {
-        val regex = runCatching { Regex(channelNameRegex) }.getOrNull()
-        if (regex == null) {
-            writeAppProbe("regex:invalid", "pattern=$channelNameRegex")
+        val all = getNotificationChannels(pkgName)
+        if (all.isEmpty()) return emptyList()
+
+        // 自定义正则非法时直接返回空，避免静默退化成内置规则造成困惑
+        if (channelNameRegex.isNotBlank() &&
+            runCatching { Regex(channelNameRegex) }.isFailure
+        ) {
             return emptyList()
         }
-        val all = getNotificationChannels(pkgName)
-        val hit = all.filter {
-            regex.matches(it.channelName) || regex.matches(it.channelId)
+
+        return all.filter {
+            ChannelMatcher.matches(it.channelName, it.channelId, channelNameRegex)
         }
-        if (hit.isNotEmpty()) {
-            writeAppProbe(
-                "regex:hit", "pkg=$pkgName pattern=$channelNameRegex " +
-                    "ids=${hit.map { it.channelId }} names=${hit.map { it.channelName }}"
-            )
-        }
-        return hit
     }
 
     /**
