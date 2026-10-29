@@ -227,6 +227,9 @@
     <string name="hint_no_channel">没有匹配到通知通道\n当前规则：%s</string>
     <string name="hint_not_active">未激活</string>
     <string name="section_apps">应用（%1$d）</string>
+    <string name="section_apps_search">应用（%1$d）· 搜索“%2$s”</string>
+    <string name="features_search_hint">搜索应用</string>
+    <string name="features_search_empty">没有找到匹配的应用</string>
     <string name="section_channels">通知通道</string>
     <string name="label_current_rule">当前规则</string>
     <string name="label_framework">框架状态</string>

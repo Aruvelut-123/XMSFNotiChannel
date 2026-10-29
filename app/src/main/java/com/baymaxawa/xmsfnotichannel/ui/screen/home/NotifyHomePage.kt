@@ -57,6 +57,7 @@ import top.yukonga.miuix.kmp.basic.PopupPositionProvider
 import top.yukonga.miuix.kmp.basic.Scaffold
 import top.yukonga.miuix.kmp.basic.SmallTitle
 import top.yukonga.miuix.kmp.basic.Switch
+import top.yukonga.miuix.kmp.basic.TextField
 import top.yukonga.miuix.kmp.basic.TopAppBar
 import top.yukonga.miuix.kmp.basic.Text as MiuixText
 import top.yukonga.miuix.kmp.icon.MiuixIcons
@@ -89,6 +90,8 @@ fun NotifyHomePageView(
     val blurActive = isBlurEnabled && hazeState != null
     val barColor = if (blurActive) Color.Transparent else MiuixTheme.colorScheme.surface
     var menuShow by remember { mutableStateOf(false) }
+    // 功能页搜索：按应用名或包名过滤已匹配到的应用列表
+    var keyword by remember { mutableStateOf("") }
 
     Scaffold(
         topBar = {
@@ -153,44 +156,83 @@ fun NotifyHomePageView(
             .only(WindowInsetsSides.Horizontal),
     ) { innerPadding ->
         Box(modifier = Modifier.blurSource(if (isBlurEnabled) hazeState else null)) {
-            LazyColumn(
-                modifier = Modifier
-                    .fillMaxSize()
-                    .pageScrollModifiers(
-                        showTopAppBar = true,
-                        topAppBarScrollBehavior = scrollBehavior,
+            Column(modifier = Modifier.fillMaxSize()) {
+                // 搜索框固定在顶栏下方，不随列表滚动。
+                // 过滤在 composable 上下文里直接算，几百个字符串本身很便宜，
+                // 不需要 remember（放在 LazyListScope 里还会编译不过）。
+                TextField(
+                    value = keyword,
+                    onValueChange = { keyword = it },
+                    label = stringResource(R.string.features_search_hint),
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = 12.dp)
+                        .padding(top = innerPadding.calculateTopPadding(), bottom = 8.dp),
+                    singleLine = true,
+                )
+                LazyColumn(
+                    modifier = Modifier
+                        .weight(1f)
+                        .fillMaxWidth()
+                        .pageScrollModifiers(
+                            showTopAppBar = true,
+                            topAppBarScrollBehavior = scrollBehavior,
+                        ),
+                    contentPadding = PaddingValues(
+                        bottom = innerPadding.calculateBottomPadding() + extraBottomPadding,
                     ),
-                contentPadding = PaddingValues(
-                    top = innerPadding.calculateTopPadding(),
-                    bottom = innerPadding.calculateBottomPadding() + extraBottomPadding,
-                ),
-            ) {
-                val apps = ui.apps
-                when {
-                    ui.loading && apps == null -> item { LoadingHint() }
-                    apps == null -> item { EmptyHint(text = stringResource(R.string.hint_start_check)) }
-                    apps.isEmpty() -> item {
-                        EmptyHint(
-                            text = stringResource(R.string.hint_no_channel, ui.ruleLabel)
-                        )
+                ) {
+                    val apps = ui.apps
+                    val q = keyword.trim()
+                    // 显式声明为可空：apps 为 null 时保持 null，交给下面的三态分支处理。
+                    val filtered: List<AppUi>? = when {
+                        apps == null -> null
+                        q.isEmpty() -> apps
+                        else -> apps.filter { app ->
+                            app.appName.contains(q, ignoreCase = true) ||
+                                app.packageName.contains(q, ignoreCase = true)
+                        }
                     }
-
-                    else -> {
-                        item {
-                            SmallTitle(
-                                text = stringResource(R.string.section_apps, apps.size)
+                    when {
+                        ui.loading && apps == null -> item { LoadingHint() }
+                        apps == null -> item { EmptyHint(text = stringResource(R.string.hint_start_check)) }
+                        apps.isEmpty() -> item {
+                            EmptyHint(
+                                text = stringResource(R.string.hint_no_channel, ui.ruleLabel)
                             )
                         }
-                        items(items = apps, key = { it.packageName }) { app ->
-                            AppRow(
-                                app = app,
-                                onClick = { onOpenApp(app) },
-                                onToggle = { onToggleApp(app, it) },
-                                modifier = Modifier
-                                    .fillMaxWidth()
-                                    .padding(horizontal = 12.dp)
-                                    .padding(bottom = 8.dp),
-                            )
+
+                        filtered.isNullOrEmpty() -> item {
+                            EmptyHint(text = stringResource(R.string.features_search_empty))
+                        }
+
+                        else -> {
+                            // here apps != null 且 filtered 非空
+                            val list = filtered ?: apps
+                            item {
+                                SmallTitle(
+                                    text = if (q.isEmpty()) {
+                                        stringResource(R.string.section_apps, list.size)
+                                    } else {
+                                        stringResource(
+                                            R.string.section_apps_search,
+                                            list.size,
+                                            q,
+                                        )
+                                    }
+                                )
+                            }
+                            items(items = list, key = { it.packageName }) { app ->
+                                AppRow(
+                                    app = app,
+                                    onClick = { onOpenApp(app) },
+                                    onToggle = { onToggleApp(app, it) },
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .padding(horizontal = 12.dp)
+                                        .padding(bottom = 8.dp),
+                                )
+                            }
                         }
                     }
                 }

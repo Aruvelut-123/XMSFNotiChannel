@@ -54,7 +54,7 @@ import top.yukonga.miuix.kmp.basic.MiuixScrollBehavior
 import top.yukonga.miuix.kmp.basic.Scaffold
 import top.yukonga.miuix.kmp.basic.TextField
 import top.yukonga.miuix.kmp.basic.TextButton
-import top.yukonga.miuix.kmp.overlay.OverlayDialog
+import top.yukonga.miuix.kmp.window.WindowDialog
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Arrangement
 import top.yukonga.miuix.kmp.basic.SmallTitle
@@ -381,7 +381,13 @@ fun SettingsPageView(
     }
 
     // 自定义规则对话框
-    OverlayDialog(
+    // 注意：这里必须用 WindowDialog 而不是 OverlayDialog。
+    // OverlayDialog 内部走 MiuixPopupUtils.DialogLayout，作用是把对话框塞进一个
+    // 全局队列，由根布局里的 MiuixPopupHost() 统一渲染；本项目没有挂载
+    // MiuixPopupHost（挂在 MainActivity 的话子页面 Activity 又拿不到），
+    // 结果就是 show 变成 true 但没有任何东西被绘制，表现为「点了没反应」。
+    // WindowDialog 自己持有 Dialog 窗口，不依赖宿主。
+    WindowDialog(
         show = showRuleDialog,
         title = stringResource(R.string.label_current_rule),
         summary = stringResource(R.string.rule_dialog_summary),

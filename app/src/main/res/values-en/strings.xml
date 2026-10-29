@@ -256,6 +256,9 @@
     <string name="msg_bulk_success">%1$d channels updated</string>
     <string name="msg_toggle_failed">Failed to change %1$s / %2$s</string>
     <string name="section_apps">Apps</string>
+    <string name="section_apps_search">Apps (%1$d) · “%2$s”</string>
+    <string name="features_search_hint">Search apps</string>
+    <string name="features_search_empty">No matching app found</string>
     <string name="section_channels">Channels</string>
     <string name="state_module_active">Active</string>
     <string name="state_module_inactive">Not active</string>
