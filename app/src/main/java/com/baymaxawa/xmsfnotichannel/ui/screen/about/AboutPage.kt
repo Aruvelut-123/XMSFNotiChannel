@@ -1,6 +1,7 @@
 package com.baymaxawa.xmsfnotichannel.ui.screen.about
 
 import androidx.compose.foundation.Image
+import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
@@ -20,6 +21,7 @@ import androidx.compose.foundation.layout.systemBars
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyListState
 import androidx.compose.foundation.lazy.rememberLazyListState
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.derivedStateOf
@@ -30,6 +32,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.graphics.graphicsLayer
@@ -43,6 +46,8 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.LayoutDirection
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.annotation.DrawableRes
+import androidx.core.content.ContextCompat
 import androidx.core.graphics.drawable.toBitmap
 import com.baymaxawa.xmsfnotichannel.R
 import com.baymaxawa.xmsfnotichannel.ui.component.effect.BgEffectBackground
@@ -70,6 +75,7 @@ import top.yukonga.miuix.kmp.blur.layerBackdrop
 import top.yukonga.miuix.kmp.blur.textureBlur
 import top.yukonga.miuix.kmp.preference.ArrowPreference
 import top.yukonga.miuix.kmp.squircle.squircleClip
+import top.yukonga.miuix.kmp.theme.MiuixTheme
 import top.yukonga.miuix.kmp.theme.MiuixTheme.colorScheme
 import androidx.compose.ui.graphics.BlendMode as ComposeBlendMode
 import top.yukonga.miuix.kmp.basic.Text as MiuixText
@@ -402,11 +408,13 @@ private fun AboutContent(
                         BasicComponent(
                             title = stringResource(R.string.dev_milu),
                             summary = stringResource(R.string.dev_milu_summary),
+                            startAction = { DevAvatar(R.drawable.dev_milu) },
                             onClick = { uriHandler.openUri("http://www.coolapk.com/u/1189245") },
                         )
                         BasicComponent(
                             title = stringResource(R.string.dev_baymaxawa),
                             summary = stringResource(R.string.dev_baymaxawa_summary),
+                            startAction = { DevAvatar(R.drawable.dev_baymaxawa) },
                             onClick = { uriHandler.openUri("https://github.com/Aruvelut-123") },
                         )
                     }
@@ -451,5 +459,28 @@ private fun AboutContent(
                 }
             }
         }
+    }
+}
+
+/** 开发者头像：圆形裁切，缺少资源时退化为空白占位。 */
+@Composable
+private fun DevAvatar(@DrawableRes resId: Int) {
+    val context = LocalContext.current
+    val bitmap = remember(resId) {
+        runCatching {
+            ContextCompat.getDrawable(context, resId)?.toBitmap(96, 96)?.asImageBitmap()
+        }.getOrNull()
+    }
+    val modifier = Modifier
+        .size(36.dp)
+        .clip(CircleShape)
+    if (bitmap != null) {
+        Image(
+            bitmap = bitmap,
+            contentDescription = null,
+            modifier = modifier,
+        )
+    } else {
+        Box(modifier = modifier.background(MiuixTheme.colorScheme.surfaceContainerHigh))
     }
 }

@@ -84,7 +84,7 @@ fun NotifyHomePageView(
     onToggleApp: (AppUi, Boolean) -> Unit = { _, _ -> },
 ) {
     val scrollBehavior = MiuixScrollBehavior()
-    val title = stringResource(R.string.tab_home)
+    val title = stringResource(R.string.tab_features)
     val hazeState = rememberBlurState()
     val blurActive = isBlurEnabled && hazeState != null
     val barColor = if (blurActive) Color.Transparent else MiuixTheme.colorScheme.surface
@@ -165,17 +165,6 @@ fun NotifyHomePageView(
                     bottom = innerPadding.calculateBottomPadding() + extraBottomPadding,
                 ),
             ) {
-                item {
-                    StatusCard(
-                        ui = ui,
-                        onRecheck = onRecheck,
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .padding(horizontal = 12.dp)
-                            .padding(top = 12.dp),
-                    )
-                }
-
                 val apps = ui.apps
                 when {
                     ui.loading && apps == null -> item { LoadingHint() }
@@ -207,36 +196,6 @@ fun NotifyHomePageView(
                 }
             }
         }
-    }
-}
-
-/** 上面这张状态卡展示模块激活状态、版本与当前搜索规则。 */
-@Composable
-private fun StatusCard(
-    ui: NotifyHomeUi,
-    onRecheck: () -> Unit,
-    modifier: Modifier = Modifier,
-) {
-    val active = ui.state == FRAMEWORK_ACTIVE
-    Card(
-        modifier = modifier,
-        colors = CardDefaults.defaultColors(color = MiuixTheme.colorScheme.secondaryContainer),
-    ) {
-        BasicComponent(
-            title = if (active) "✓ ${ui.stateLabel}" else ui.stateLabel,
-            summary = ui.versionLine,
-            onClick = onRecheck,
-        )
-        BasicComponent(
-            title = stringResource(R.string.label_current_rule),
-            summary = ui.ruleLabel,
-        )
-        BasicComponent(
-            title = stringResource(R.string.label_framework),
-            summary = ui.frameworkDesc.ifEmpty {
-                stringResource(R.string.hint_not_active)
-            },
-        )
     }
 }
 

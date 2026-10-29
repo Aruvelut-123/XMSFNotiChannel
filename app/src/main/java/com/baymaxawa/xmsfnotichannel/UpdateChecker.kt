@@ -9,7 +9,7 @@ import java.net.URL
 
 object UpdateChecker {
 
-    private const val REPO = "your-name/your-repo"
+    private const val REPO = "Aruvelut-123/XMSFNotiChannel"
     private const val API_URL = "https://api.github.com/repos/$REPO/releases/latest"
     private const val RELEASES_URL = "https://github.com/$REPO/releases"
 
@@ -34,6 +34,17 @@ object UpdateChecker {
                 conn.setRequestProperty("Accept", "application/vnd.github+json")
 
                 val code = conn.responseCode
+                if (code == HttpURLConnection.HTTP_NOT_FOUND) {
+                    // 仓库还没有任何 Release：视为「已是最新」，不要报错
+                    return@runCatching UpdateInfo(
+                        currentVersion = currentVersion,
+                        latestVersion = currentVersion,
+                        releaseUrl = RELEASES_URL,
+                        releaseName = "",
+                        releaseNotes = "",
+                        hasUpdate = false,
+                    )
+                }
                 if (code != HttpURLConnection.HTTP_OK) {
                     throw Exception("HTTP $code")
                 }

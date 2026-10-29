@@ -41,9 +41,12 @@ fun NotifyHostPageView(
 
     var openedApp by remember { mutableStateOf<AppUi?>(null) }
 
-    // 首次进入自动检测一次：旧版需求是「打开软件没有数据就自动开始检测」
-    LaunchedEffect(Unit) {
-        if (ui.apps == null) controller.scan(fresh = true)
+    // 首次进入自动检测一次，但只在模块已激活时进行：
+    // 未激活时 hook 没生效，扫出来的通道也改不动，白跑一遍 Binder 而已。
+    LaunchedEffect(ui.state) {
+        if (ui.apps == null && ui.state == FRAMEWORK_ACTIVE) {
+            controller.scan(fresh = true)
+        }
     }
 
     // refreshKey 变化（切回本页）时静默刷新一次状态，不重建列表

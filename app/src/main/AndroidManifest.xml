@@ -61,6 +61,10 @@
             android:name=".ui.screen.safemode.SafeModeActivity"
             android:exported="false"
             android:theme="@style/Theme.XMSFNotiChannel" />
+        <activity
+            android:name=".ui.screen.export.ChannelExportActivity"
+            android:exported="false"
+            android:theme="@style/Theme.XMSFNotiChannel" />
         <!-- 接收目标进程的 Hook 生效回报。来源经发送者 UID / 包名 / 版本校验。 -->
         <receiver
             android:name=".xposed.HookStatusReceiver"

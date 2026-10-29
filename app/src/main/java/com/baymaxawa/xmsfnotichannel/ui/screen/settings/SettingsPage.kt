@@ -23,11 +23,9 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.systemBars
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
-import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
@@ -39,24 +37,17 @@ import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import com.baymaxawa.xmsfnotichannel.LocaleHelper
 import com.baymaxawa.xmsfnotichannel.R
-import com.baymaxawa.xmsfnotichannel.hook.dexkit.DexKitCacheManager
-import com.baymaxawa.xmsfnotichannel.hook.device.DeviceContext
 import com.baymaxawa.xmsfnotichannel.hook.device.DeviceType
 import com.baymaxawa.xmsfnotichannel.prefs.ConfigBackup
 import com.baymaxawa.xmsfnotichannel.prefs.ConfigState
-import com.baymaxawa.xmsfnotichannel.prefs.OptionRegistry
+import com.baymaxawa.xmsfnotichannel.ui.screen.export.ChannelExportActivity
 import com.baymaxawa.xmsfnotichannel.ui.screen.safemode.SafeModeActivity
 import com.baymaxawa.xmsfnotichannel.ui.util.BlurredBar
 import com.baymaxawa.xmsfnotichannel.ui.util.MiuixExpandSpec
 import com.baymaxawa.xmsfnotichannel.ui.util.blurSource
 import com.baymaxawa.xmsfnotichannel.ui.util.pageScrollModifiers
 import com.baymaxawa.xmsfnotichannel.ui.util.rememberBlurState
-import com.baymaxawa.xmsfnotichannel.xposed.RootHelper
-import com.baymaxawa.xmsfnotichannel.xposed.SafeModeReader
-import com.baymaxawa.xmsfnotichannel.xposed.XposedServiceManager
-import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
-import kotlinx.coroutines.withContext
 import top.yukonga.miuix.kmp.basic.BasicComponent
 import top.yukonga.miuix.kmp.basic.Card
 import top.yukonga.miuix.kmp.basic.MiuixScrollBehavior
@@ -98,12 +89,9 @@ fun SettingsPageView(
     val context = LocalContext.current
     val resources = LocalResources.current
     val activity = context as? Activity
-    val scope = rememberCoroutineScope()
     val scrollBehavior = MiuixScrollBehavior()
     val title = stringResource(R.string.tab_settings)
-    val safeModePackages = SafeModeReader.safeModePackages
 
-    LaunchedEffect(Unit) { SafeModeReader.refresh() }
 
     // 「通道规则」相关：自定义关键词对话框
     val rulePrefs = context.getSharedPreferences(
@@ -189,103 +177,6 @@ fun SettingsPageView(
             ) {
                 item {
                     Column {
-                        SmallTitle(text = stringResource(R.string.settings_module))
-                        Card(
-                            modifier = Modifier.padding(horizontal = 12.dp).padding(bottom = 12.dp)
-                        ) {
-                            val autoDevice = remember { DeviceContext.detected.type }
-                            val deviceOptions = listOf(
-                                stringResource(
-                                    R.string.device_type_default,
-                                    stringResource(deviceTypeLabelRes(autoDevice)),
-                                ),
-                                stringResource(R.string.device_type_phone),
-                                stringResource(R.string.device_type_pad),
-                                stringResource(R.string.device_type_fold),
-                            )
-                            val deviceValues = listOf(
-                                DeviceType.OVERRIDE_AUTO,
-                                DeviceType.PHONE.key,
-                                DeviceType.PAD.key,
-                                DeviceType.FOLD.key,
-                            )
-                            val savedDevice = ConfigState.string(
-                                DeviceContext.KEY_DEVICE_TYPE,
-                                DeviceType.OVERRIDE_AUTO,
-                            )
-                            val deviceIndex = deviceValues.indexOf(savedDevice).takeIf { it >= 0 } ?: 0
-                            WindowDropdownPreference(
-                                title = stringResource(R.string.settings_device_type),
-                                summary = deviceOptions[deviceIndex],
-                                items = deviceOptions,
-                                selectedIndex = deviceIndex,
-                                onSelectedIndexChange = {
-                                    ConfigState.set(DeviceContext.KEY_DEVICE_TYPE, deviceValues[it])
-                                },
-                                onExpandedChange = { },
-                            )
-
-                            if (safeModePackages.isNotEmpty()) {
-                                BasicComponent(
-                                    title = stringResource(R.string.safe_mode_active_title),
-                                    summary = stringResource(
-                                        R.string.safe_mode_active_summary,
-                                        safeModePackages.size,
-                                    ),
-                                )
-                            }
-                            ArrowPreference(
-                                title = stringResource(R.string.safe_mode_manage),
-                                summary = if (safeModePackages.isEmpty()) {
-                                    stringResource(R.string.safe_mode_manage_summary_none)
-                                } else {
-                                    stringResource(
-                                        R.string.safe_mode_manage_summary_active,
-                                        safeModePackages.size,
-                                    )
-                                },
-                                onClick = {
-                                    context.startActivity(Intent(context, SafeModeActivity::class.java))
-                                },
-                            )
-
-                            ArrowPreference(
-                                title = stringResource(R.string.module_scope_request),
-                                summary = stringResource(R.string.module_scope_request_summary),
-                                onClick = {
-                                    val packages = OptionRegistry.all()
-                                        .flatMap { it.targetPackages }
-                                        .distinct()
-                                    XposedServiceManager.ensureScope(packages) { ok, message ->
-                                        val text = if (ok) {
-                                            resources.getString(R.string.module_scope_request_success)
-                                        } else {
-                                            resources.getString(R.string.module_scope_request_failed, message ?: "")
-                                        }
-                                        Toast.makeText(context, text, Toast.LENGTH_SHORT).show()
-                                    }
-                                },
-                            )
-                            ArrowPreference(
-                                title = stringResource(R.string.module_clear_dexkit),
-                                summary = stringResource(R.string.module_clear_dexkit_summary),
-                                onClick = {
-                                    val targets = XposedServiceManager.scope
-                                    scope.launch {
-                                        val success = withContext(Dispatchers.IO) {
-                                            RootHelper.deleteDexKitCache(targets, DexKitCacheManager.CACHE_DIR)
-                                        }
-                                        val text = if (success) {
-                                            resources.getString(R.string.module_clear_dexkit_success)
-                                        } else {
-                                            resources.getString(R.string.module_clear_dexkit_failed)
-                                        }
-                                        Toast.makeText(context, text, Toast.LENGTH_SHORT).show()
-                                    }
-                                },
-                            )
-                        }
-
                         SmallTitle(text = stringResource(R.string.settings_channel_rule))
                         Card(
                             modifier = Modifier.padding(horizontal = 12.dp).padding(bottom = 12.dp)
@@ -439,6 +330,20 @@ fun SettingsPageView(
                             }
                         }
 
+                        SmallTitle(text = stringResource(R.string.settings_analysis))
+                        Card(
+                            modifier = Modifier.padding(horizontal = 12.dp).padding(bottom = 12.dp)
+                        ) {
+                            ArrowPreference(
+                                title = stringResource(R.string.settings_export_channels),
+                                summary = stringResource(R.string.settings_export_channels_summary),
+                                onClick = {
+                                    context.startActivity(
+                                        Intent(context, ChannelExportActivity::class.java)
+                                    )
+                                },
+                            )
+                        }
                         SmallTitle(text = stringResource(R.string.settings_data))
                         Card(
                             modifier = Modifier.padding(horizontal = 12.dp).padding(bottom = 12.dp)

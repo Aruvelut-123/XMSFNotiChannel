@@ -1,6 +1,6 @@
 <resources>
-    <string name="app_name">你这运营消息根本全都是广告吧</string>
-    <string name="tab_home">主页</string>
+    <string name="app_name">通知哨兵</string>
+    <string name="tab_home">概览</string>
     <string name="tab_features">功能</string>
     <string name="tab_settings">设置</string>
     <string name="tab_about">关于</string>
@@ -263,4 +263,11 @@
     <string name="rule_dialog_summary">留空则使用内置关键词表；填写则按正则匹配通道名</string>
     <string name="rule_dialog_label">关键词 / 正则</string>
     <string name="rule_saved">规则已保存</string>
+    <string name="settings_analysis">分析</string>
+    <string name="settings_export_channels">导出通知通道</string>
+    <string name="settings_export_channels_summary">选一个应用，把它的全部通知通道导出为 JSON</string>
+    <string name="export_search_hint">搜索应用名或包名</string>
+    <string name="export_app_count">共 %1$d 个应用</string>
+    <string name="export_channel_count">%1$d 个通知通道</string>
+    <string name="export_loading">正在统计通道…</string>
 </resources>

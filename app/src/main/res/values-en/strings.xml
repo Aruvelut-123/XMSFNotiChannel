@@ -1,6 +1,6 @@
 <resources>
-    <string name="app_name">NotiChannel Ads Blocker</string>
-    <string name="tab_home">Home</string>
+    <string name="app_name">NotiSentry</string>
+    <string name="tab_home">Overview</string>
     <string name="tab_features">Features</string>
     <string name="tab_settings">Settings</string>
     <string name="tab_about">About</string>
@@ -261,4 +261,11 @@
     <string name="state_module_inactive">Not active</string>
     <string name="state_module_not_in_scope">Not in scope</string>
     <string name="state_module_restart_needed">Injected, restart required</string>
+    <string name="settings_analysis">Analysis</string>
+    <string name="settings_export_channels">Export notification channels</string>
+    <string name="settings_export_channels_summary">Pick an app and export all its channels as JSON</string>
+    <string name="export_search_hint">Search app name or package</string>
+    <string name="export_app_count">%1$d apps</string>
+    <string name="export_channel_count">%1$d channels</string>
+    <string name="export_loading">Counting channels…</string>
 </resources>

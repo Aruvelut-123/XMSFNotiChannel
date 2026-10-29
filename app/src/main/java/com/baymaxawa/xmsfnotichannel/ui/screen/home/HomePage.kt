@@ -134,7 +134,14 @@ fun HomePageView(
                     var statApps by remember { mutableIntStateOf(0) }
                     var statChannels by remember { mutableIntStateOf(0) }
                     var statEnabled by remember { mutableIntStateOf(0) }
-                    LaunchedEffect(refreshKey) {
+                    // 未激活时不做匹配扫描：hook 没生效，扫出来的数字既不可信也白耗 Binder
+                    LaunchedEffect(refreshKey, activated) {
+                        if (!activated) {
+                            statApps = 0
+                            statChannels = 0
+                            statEnabled = 0
+                            return@LaunchedEffect
+                        }
                         val stats = withContext(Dispatchers.IO) {
                             runCatching {
                                 val list = AppInfoHelper(context).getAppInfoListForNew()
