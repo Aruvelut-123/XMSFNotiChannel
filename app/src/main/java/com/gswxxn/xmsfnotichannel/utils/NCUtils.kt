@@ -223,8 +223,17 @@ class NCUtils(private val context: Context) {
 
     /** ParceledListSlice -> List，优先 getList()，失败则读 mList 字段 */
     private fun unwrapParceledList(slice: Any?): List<Any> {
-        if (slice == null) return emptyList()
-        if (slice is List<*>) return slice.filterNotNull()
+        if (slice == null) {
+            writeAppProbe("unwrap:nullSlice")
+            return emptyList()
+        }
+        if (slice is List<*>) {
+            val l = slice.filterNotNull()
+            writeAppProbe("unwrap:alreadyList", "size=${l.size}")
+            return l
+        }
+
+        writeAppProbe("unwrap:type", "cls=${slice.javaClass.name}")
 
         val clazz = Class.forName("android.content.pm.ParceledListSlice")
 
@@ -232,12 +241,25 @@ class NCUtils(private val context: Context) {
             clazz.getDeclaredMethod("getList").apply { isAccessible = true }.invoke(slice)
         }.onSuccess { result ->
             @Suppress("UNCHECKED_CAST")
-            (result as? List<Any>)?.let { return it }
-        }.onFailure { Log.w(TAG, "getList() 失败，改用字段读取", it) }
+            val list = result as? List<Any>
+            if (list != null) {
+                writeAppProbe("unwrap:getListOk", "size=${list.size} first=${list.firstOrNull()?.javaClass?.name}")
+                return list
+            }
+            writeAppProbe("unwrap:getListNotList", "result=${result?.javaClass?.name}")
+        }.onFailure {
+            writeAppProbe(
+                "unwrap:getListFail", "${it::class.java.simpleName}: ${it.message}"
+            )
+        }
 
         return runCatching {
             @Suppress("UNCHECKED_CAST")
             clazz.getDeclaredField("mList").apply { isAccessible = true }.get(slice) as? List<Any>
+        }.onSuccess { l ->
+            writeAppProbe("unwrap:fieldOk", "size=${l?.size}")
+        }.onFailure {
+            writeAppProbe("unwrap:fieldFail", "${it::class.java.simpleName}: ${it.message}")
         }.getOrNull().orEmpty()
     }
 
@@ -312,10 +334,22 @@ class NCUtils(private val context: Context) {
         pkgName: String,
         channelNameRegex: String
     ): List<AppInfoHelper.NCInfo> {
-        val regex = runCatching { Regex(channelNameRegex) }.getOrNull() ?: return emptyList()
-        return getNotificationChannels(pkgName).filter {
+        val regex = runCatching { Regex(channelNameRegex) }.getOrNull()
+        if (regex == null) {
+            writeAppProbe("regex:invalid", "pattern=$channelNameRegex")
+            return emptyList()
+        }
+        val all = getNotificationChannels(pkgName)
+        val hit = all.filter {
             regex.matches(it.channelName) || regex.matches(it.channelId)
         }
+        if (hit.isNotEmpty()) {
+            writeAppProbe(
+                "regex:hit", "pkg=$pkgName pattern=$channelNameRegex " +
+                    "ids=${hit.map { it.channelId }} names=${hit.map { it.channelName }}"
+            )
+        }
+        return hit
     }
 
     /**

@@ -42,13 +42,29 @@ class AppInfoHelper(private val context: Context) {
             pm.getInstalledApplications(0)
         }.getOrDefault(emptyList())
 
+        AppProbe.init(context)
+        AppProbe.mark("scan:start", "packages=${packages.size} pattern=$pattern")
+
+        var probed = 0
         for (appInfo in packages) {
             // 跳过没有通道的应用，减少无效反射调用
             val channels = runCatching {
                 ncUtils.getNotificationChannelInfoByRegex(appInfo.packageName, pattern)
             }.getOrDefault(emptyList())
 
-            if (channels.isEmpty()) continue
+            if (channels.isEmpty()) {
+                continue
+            }
+
+            // 前几个有通道的包各记一条，看真实通道 id / 名称长什么样
+            if (probed < 5) {
+                probed++
+                AppProbe.mark(
+                    "scan:channelsOf",
+                    "${appInfo.packageName} -> " +
+                        channels.joinToString(";") { "${it.channelId}|${it.channelName}|imp=${it.importance}" }
+                )
+            }
 
             val label = runCatching { appInfo.loadLabel(pm).toString() }.getOrDefault(appInfo.packageName)
             val icon = runCatching { appInfo.loadIcon(pm) }.getOrNull() ?: continue
