@@ -25,6 +25,23 @@ object ModuleConstants {
      */
     const val STATUS_FILE_PATH = "/data/system/xmsfnotichannel_status.txt"
 
+    /**
+     * 注意：上面这个状态文件**不能**用来判断 hook 是否生效。
+     *
+     * 实测结论（Android 17 / HyperOS 4.0）：
+     * - system_server 能写 `/data/system/`，但该目录 0700 system:system，App 进不去，读不到；
+     * - system_server 写不进 `/data/user/0/<包名>/files/`（SELinux EACCES）；
+     * - system_server 也写不进 `/data/local/tmp/`（SELinux EACCES）。
+     *
+     * 因此真正的判据改为「能力探测」：App 直接尝试跨进程读一个**其它应用**的
+     * 通知通道，抛 SecurityException 就是没生效，正常返回就是生效。
+     * 见 [FrameworkStatus.probeByCapability] 与 [NCUtils.probeHookEffective]。
+     *
+     * 这个常量仅为排查期留存，正式逻辑不再读取。
+     */
+    @Deprecated("仅排查期留存，正式逻辑改用能力探测")
+    const val UNUSED_STATUS_HINT = ""
+
     /** 模块包名（hook 侧在 system_server 里执行，不能依赖 BuildConfig 之外的上下文） */
     const val MODULE_PACKAGE = "com.gswxxn.xmsfnotichannel"
 

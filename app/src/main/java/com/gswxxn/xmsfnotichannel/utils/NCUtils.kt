@@ -197,6 +197,41 @@ class NCUtils(private val context: Context) {
         return last ?: IllegalStateException("no compatible overload")
     }
 
+    /**
+     * 能力探测：实际读一次**其它应用**的通知通道，用来判断 hook 是否真的生效。
+     *
+     * 为什么不能靠远程偏好或状态文件：
+     * - `prefs(...)` 在本机实测退化为 system_server 进程内的私有 SharedPreferences，
+     *   App 侧 `getRemotePreferences` 永远读到 false；
+     * - 状态文件也不行：`/data/system/` 目录 0700 system:system，App 进不去；
+     *   system_server 又写不进 `/data/user/0/<包名>/files` 和 `/data/local/tmp`（EACCES）；
+     * - `svc.scope` 只反映用户勾选的作用域，不代表 hook 已经挂上。
+     *
+     * 只有「真的跨进程读到了别人的通道」才能证明：
+     * 服务端 `isCallerSystemOrPhone()` 被我们的 hook 放行了。
+     *
+     * @return true 表示 hook 确实生效；false 表示未生效或探测失败
+     */
+    fun probeHookEffective(): Boolean {
+        // 自己的包不需要特权就能读，不能用来判断，必须挑别人
+        val otherPkg = runCatching {
+            context.packageManager.getInstalledApplications(0)
+                .map { it.packageName }
+                .firstOrNull { it != context.packageName && it != "android" }
+        }.getOrNull() ?: return false
+
+        val otherUid = getUid(otherPkg)
+        if (otherUid < 0) return false
+
+        val result = runCatching {
+            invokeFlexible("getNotificationChannelsForPackage", otherPkg, otherUid)
+        }
+
+        // 关键判据：抛 SecurityException = hook 没生效；
+        // 正常返回（哪怕是空列表）= 服务端校验被放行了
+        return result.isSuccess && result.getOrNull() != null
+    }
+
     init {
         ensureHiddenApiBypass()
     }

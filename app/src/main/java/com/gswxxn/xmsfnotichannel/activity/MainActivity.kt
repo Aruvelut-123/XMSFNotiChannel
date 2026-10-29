@@ -127,6 +127,9 @@ class MainActivity : BaseActivity(), CoroutineScope by MainScope() {
         // 重新检测
         binding.recheck.setOnClickListener {
             appInfo.pattern = channelName
+            // 强制重新做一次能力探测，不吃缓存
+            FrameworkStatus.invalidateProbe()
+            FrameworkStatus.refresh()
             launch {
                 showView(false, binding.configListView, binding.afterActions)
                 showView(true, binding.configListLoadingView)

@@ -15,6 +15,12 @@ object FrameworkStatus {
 
     private const val TAG = "FrameworkStatus"
 
+    /** 能力探测结果缓存时长：避免每次 onResume 都打一次 Binder */
+    private const val PROBE_CACHE_MS = 15_000L
+
+    /** 单次能力探测超时：Binder 卡住时不能把界面拖死 */
+    private const val PROBE_TIMEOUT_MS = 1_500L
+
     enum class State {
         /** 未拿到框架服务（模块未激活 / 框架未运行） */
         INACTIVE,
@@ -32,6 +38,10 @@ object FrameworkStatus {
     /** Application context，用于读应用私有目录下的状态文件 */
     @Volatile
     private var appContext: android.content.Context? = null
+
+    /** 最近一次能力探测结果（时间戳 -> 是否生效） */
+    @Volatile
+    private var cachedProbe: Pair<Long, Boolean>? = null
 
     @Volatile
     var state: State = State.INACTIVE
@@ -130,49 +140,49 @@ object FrameworkStatus {
                 .getBoolean(ModuleConstants.KEY_HOOK_READY, false)
         }.getOrDefault(false)
 
-        // 降级 1：读 system_server 写进本应用私有目录的状态文件。
-        // 远程偏好在本机实测退化为 system_server 私有 SharedPreferences，永远读不到，
-        // 因此以文件为准。App 读自己私有目录不需要任何特权。
-        val hookReadyByFile = readLocalStatusFile()
-
-        // 降级 2：/data/system/ 下的状态文件（普通 App 无权读，仅当设备给过权限时有效）
-        val hookReadyBySystemFile = runCatching {
-            val f = java.io.File(ModuleConstants.STATUS_FILE_PATH)
-            f.exists() && f.readText().contains("${ModuleConstants.KEY_HOOK_READY}=true")
-        }.getOrDefault(false)
-
-        // 降级 3：/data/local/tmp 下的状态文件（实测唯一 App 真能读到的位置）
-        val hookReadyByTmpFile = runCatching {
-            val f = java.io.File(ModuleConstants.STATUS_FILE_TMP)
-            f.exists() && f.readText().contains("${ModuleConstants.KEY_HOOK_READY}=true")
-        }.getOrDefault(false)
-
-        val hookReady =
-            hookReadyByPrefs || hookReadyByFile || hookReadyBySystemFile || hookReadyByTmpFile
+        // 主判据：真的跨进程读一次别人的通知通道。
+        // 这是唯一能证明「服务端校验被 hook 放行」的方式，
+        // 远程偏好和状态文件在本机都不可用（见 ModuleConstants 里的说明）。
+        val hookEffective = if (hookReadyByPrefs) true else probeByCapability()
 
         AppProbe.mark(
             "FrameworkStatus:refresh",
-            "inScope=$inScope prefs=$hookReadyByPrefs file=$hookReadyByFile " +
-                "sysFile=$hookReadyBySystemFile tmpFile=$hookReadyByTmpFile " +
+            "inScope=$inScope prefs=$hookReadyByPrefs probe=$hookEffective " +
                 "name=$frameworkName ver=$frameworkVersion api=$apiVersion"
         )
 
-        state = if (hookReady) State.ACTIVE else State.RESTART_NEEDED
+        state = if (hookEffective) State.ACTIVE else State.RESTART_NEEDED
         notifyChanged()
     }
 
     /**
-     * 读本应用私有目录里的状态文件。
-     * 内容格式为 `key=value` 每行一条，只需判断 hook_ready。
+     * 用一次真实的跨进程通道读取来验证 hook 是否生效。
+     *
+     * 之所以要放到后台线程并加超时：这是 Binder 调用，
+     * 在 UI 线程做可能触发 StrictMode 或在 system_server 卡顿时拖慢界面。
+     * 探测结果短时缓存，避免每次 onResume 都打一次 Binder。
      */
-    private fun readLocalStatusFile(): Boolean {
+    private fun probeByCapability(): Boolean {
+        val now = System.currentTimeMillis()
+        cachedProbe?.let { (at, value) ->
+            if (now - at < PROBE_CACHE_MS) return value
+        }
+
         val ctx = appContext ?: return false
-        return runCatching {
-            val f = java.io.File(ctx.filesDir, ModuleConstants.STATUS_FILE_NAME)
-            f.exists() && f.readText().lineSequence().any {
-                it.trim() == "${ModuleConstants.KEY_HOOK_READY}=true"
-            }
+        val value = runCatching {
+            val task = java.util.concurrent.FutureTask { NCUtils(ctx).probeHookEffective() }
+            val thread = Thread(task, "xmsf-hook-probe").apply { isDaemon = true }
+            thread.start()
+            task.get(PROBE_TIMEOUT_MS, java.util.concurrent.TimeUnit.MILLISECONDS)
         }.getOrDefault(false)
+
+        cachedProbe = now to value
+        return value
+    }
+
+    /** 清掉探测缓存，下一次 refresh 会重新做一次真实的跨进程读取 */
+    fun invalidateProbe() {
+        cachedProbe = null
     }
 
     private fun notifyChanged() {
