@@ -241,8 +241,15 @@ object HookEntry : YukiHookXposedModule {
     /**
      * 把装载结果写进远程偏好，供 App 侧读取。
      * 写失败不影响 hook 本身，异常全部吞掉。
+     *
+     * 注意：libxposed 的远程偏好依赖框架的 `PROP_CAP_REMOTE` 能力，
+     * 部分实现下 `getRemotePreferences` 会退化为 system_server 进程内的
+     * 私有 SharedPreferences，App 侧读不到。
+     * 因此这里**额外**写一份状态文件到 `/data/system/`，
+     * App 侧在远程偏好拿不到时改为读取该文件（见 [FrameworkStatus]）。
      */
     private fun PackageParam.writeStatus(methods: List<String>) {
+        // 路径 1：远程偏好（框架支持时最标准）
         runCatching {
             prefs(ModuleConstants.PREFS_NAME).edit {
                 putBoolean(ModuleConstants.KEY_HOOK_READY, true)
@@ -254,6 +261,38 @@ object HookEntry : YukiHookXposedModule {
         }.onFailure {
             Log.w(TAG, "write status failed", it)
             DiagnosticProbe.mark("writeStatus:fail", "err=${it::class.java.name}:${it.message}")
+        }
+
+        // 路径 2：落盘状态文件，App 侧可直接读，绕开远程偏好能力缺失的问题
+        val statusText = buildString {
+            appendLine("${ModuleConstants.KEY_HOOK_READY}=true")
+            appendLine("${ModuleConstants.KEY_LOADED_AT}=${System.currentTimeMillis()}")
+            appendLine("${ModuleConstants.KEY_TARGET_CLASS}=$TARGET_CLASS")
+            appendLine("${ModuleConstants.KEY_HOOKED_METHODS}=${methods.joinToString(",")}")
+        }
+
+        runCatching {
+            java.io.File(ModuleConstants.STATUS_FILE_PATH).writeText(statusText)
+            DiagnosticProbe.mark("writeStatus:fileOk")
+        }.onFailure {
+            Log.w(TAG, "write status file failed", it)
+            DiagnosticProbe.mark("writeStatus:fileFail", "err=${it::class.java.name}:${it.message}")
+        }
+
+        // 路径 3：写进模块自己的私有目录。`/data/system/` 普通 App 读不到，
+        // system_server 有 DAC override，写进去后 chmod 644 让 App 以自己的 uid 读取。
+        runCatching {
+            val dir = java.io.File("/data/user/0/${ModuleConstants.MODULE_PACKAGE}/files")
+            if (!dir.exists()) dir.mkdirs()
+            val f = java.io.File(dir, ModuleConstants.STATUS_FILE_NAME)
+            f.writeText(statusText)
+            runCatching { f.setReadable(true, false) }
+            DiagnosticProbe.mark("writeStatus:appDirOk", "path=${f.absolutePath}")
+        }.onFailure {
+            Log.w(TAG, "write app-dir status file failed", it)
+            DiagnosticProbe.mark(
+                "writeStatus:appDirFail", "err=${it::class.java.name}:${it.message}"
+            )
         }
     }
 }

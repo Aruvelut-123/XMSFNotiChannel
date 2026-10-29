@@ -8,7 +8,6 @@ import android.content.Context
 import android.os.IBinder
 import android.util.Log
 import org.lsposed.hiddenapibypass.HiddenApiBypass
-import java.io.File
 import java.lang.reflect.Method
 
 /**
@@ -93,18 +92,12 @@ class NCUtils(private val context: Context) {
         }
     }
     /**
-     * App 侧落盘日志。App 进程无权限写 /data/system，
-     * 因此写到应用自己的外部目录，这样排查时用 root 一定能读到。
+     * App 侧落盘日志，转发到 [AppProbe]。
+     * 这里在构造时确保目录存在，避免「探针不生效」的情况。
      */
     private fun writeAppProbe(stage: String, extra: String = "") {
-        runCatching {
-            val dir = File(context.filesDir, "probe")
-            if (!dir.exists()) dir.mkdirs()
-            File(dir, "app_probe.log").appendText(
-                "stage=$stage pid=${android.os.Process.myPid()} uid=${android.os.Process.myUid()} " +
-                    "at=${System.currentTimeMillis()} $extra\n"
-            )
-        }
+        AppProbe.init(context)
+        AppProbe.mark(stage, extra)
     }
 
     /** ParceledListSlice -> List，优先 getList()，失败则读 mList 字段 */
@@ -208,12 +201,28 @@ class NCUtils(private val context: Context) {
      * @param targetImportance IMPORTANCE_NONE(0) 关闭 / IMPORTANCE_DEFAULT(3) 开启
      */
     fun setChannelImportance(appInfo: AppInfoHelper.MyAppInfo, targetImportance: Int): Boolean {
-        val uid = getUid(appInfo.packageName)
-        if (uid < 0) return false
+        writeAppProbe("setChannelImportance:enter", "${appInfo.packageName}/${appInfo.ncInfo.channelId}")
 
-        val target = getNotificationChannels(appInfo.packageName)
-            .firstOrNull { it.channelId == appInfo.ncInfo.channelId }
-            ?: return false
+        val uid = getUid(appInfo.packageName)
+        if (uid < 0) {
+            writeAppProbe("setChannelImportance:uidFail", appInfo.packageName)
+            return false
+        }
+
+        val all = getNotificationChannels(appInfo.packageName)
+        writeAppProbe(
+            "setChannelImportance:read", "count=${all.size} ids=${all.map { it.channelId }}"
+        )
+
+        val target = all.firstOrNull { it.channelId == appInfo.ncInfo.channelId }
+        if (target == null) {
+            writeAppProbe(
+                "setChannelImportance:targetMissing",
+                "want=${appInfo.ncInfo.channelId} have=${all.map { it.channelId }}"
+            )
+            return false
+        }
+        writeAppProbe("setChannelImportance:targetFound", target.channelId)
 
         return runCatching {
             val channel = NotificationChannel(

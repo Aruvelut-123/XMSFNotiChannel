@@ -13,6 +13,6 @@ class App : Application() {
 
     override fun onCreate() {
         super.onCreate()
-        FrameworkStatus.init()
+        FrameworkStatus.init(this)
     }
 }

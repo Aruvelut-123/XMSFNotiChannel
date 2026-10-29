@@ -2,6 +2,7 @@ package com.gswxxn.xmsfnotichannel.utils
 
 import android.util.Log
 import com.gswxxn.xmsfnotichannel.App
+import com.gswxxn.xmsfnotichannel.utils.AppProbe
 import io.github.libxposed.service.XposedService
 import io.github.libxposed.service.XposedServiceHelper
 import java.util.concurrent.CopyOnWriteArraySet
@@ -28,6 +29,10 @@ object FrameworkStatus {
     @Volatile
     private var service: XposedService? = null
 
+    /** Application context，用于读应用私有目录下的状态文件 */
+    @Volatile
+    private var appContext: android.content.Context? = null
+
     @Volatile
     var state: State = State.INACTIVE
         private set
@@ -47,7 +52,11 @@ object FrameworkStatus {
     private val listeners = CopyOnWriteArraySet<() -> Unit>()
 
     /** 在 Application#onCreate 调用一次即可 */
-    fun init() {
+    fun init(context: android.content.Context? = null) {
+        if (context != null) {
+            appContext = context.applicationContext ?: context
+            AppProbe.init(context)
+        }
         runCatching {
             XposedServiceHelper.registerListener(object : XposedServiceHelper.OnServiceListener {
                 override fun onServiceBind(service: XposedService) {
@@ -58,7 +67,11 @@ object FrameworkStatus {
                     this@FrameworkStatus.onServiceDied(service)
                 }
             })
-        }.onFailure { Log.w(TAG, "注册 XposedService 监听失败", it) }
+            AppProbe.mark("FrameworkStatus:listenerRegistered")
+        }.onFailure {
+            Log.w(TAG, "注册 XposedService 监听失败", it)
+            AppProbe.mark("FrameworkStatus:registerFail", "${it::class.java.name}: ${it.message}")
+        }
     }
 
     fun addListener(listener: () -> Unit) {
@@ -112,13 +125,46 @@ object FrameworkStatus {
             return
         }
 
-        val hookReady = runCatching {
+        val hookReadyByPrefs = runCatching {
             svc.getRemotePreferences(ModuleConstants.PREFS_NAME)
                 .getBoolean(ModuleConstants.KEY_HOOK_READY, false)
         }.getOrDefault(false)
 
+        // 降级 1：读 system_server 写进本应用私有目录的状态文件。
+        // 远程偏好在本机实测退化为 system_server 私有 SharedPreferences，永远读不到，
+        // 因此以文件为准。App 读自己私有目录不需要任何特权。
+        val hookReadyByFile = readLocalStatusFile()
+
+        // 降级 2：/data/system/ 下的状态文件（普通 App 无权读，仅当设备给过权限时有效）
+        val hookReadyBySystemFile = runCatching {
+            val f = java.io.File(ModuleConstants.STATUS_FILE_PATH)
+            f.exists() && f.readText().contains("${ModuleConstants.KEY_HOOK_READY}=true")
+        }.getOrDefault(false)
+
+        val hookReady = hookReadyByPrefs || hookReadyByFile || hookReadyBySystemFile
+
+        AppProbe.mark(
+            "FrameworkStatus:refresh",
+            "inScope=$inScope prefs=$hookReadyByPrefs file=$hookReadyByFile " +
+                "sysFile=$hookReadyBySystemFile name=$frameworkName ver=$frameworkVersion api=$apiVersion"
+        )
+
         state = if (hookReady) State.ACTIVE else State.RESTART_NEEDED
         notifyChanged()
+    }
+
+    /**
+     * 读本应用私有目录里的状态文件。
+     * 内容格式为 `key=value` 每行一条，只需判断 hook_ready。
+     */
+    private fun readLocalStatusFile(): Boolean {
+        val ctx = appContext ?: return false
+        return runCatching {
+            val f = java.io.File(ctx.filesDir, ModuleConstants.STATUS_FILE_NAME)
+            f.exists() && f.readText().lineSequence().any {
+                it.trim() == "${ModuleConstants.KEY_HOOK_READY}=true"
+            }
+        }.getOrDefault(false)
     }
 
     private fun notifyChanged() {

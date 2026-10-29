@@ -12,6 +12,7 @@ import com.gswxxn.xmsfnotichannel.R
 import com.gswxxn.xmsfnotichannel.databinding.ActivityMainBinding
 import com.gswxxn.xmsfnotichannel.databinding.AdapterConfigBinding
 import com.gswxxn.xmsfnotichannel.utils.AppInfoHelper
+import com.gswxxn.xmsfnotichannel.utils.AppProbe
 import com.gswxxn.xmsfnotichannel.utils.FrameworkStatus
 import com.gswxxn.xmsfnotichannel.utils.NCUtils
 import kotlinx.coroutines.CoroutineScope
@@ -52,9 +53,14 @@ class MainActivity : BaseActivity(), CoroutineScope by MainScope() {
         // 开始检测
         binding.actionButton.setOnClickListener {
             val state = FrameworkStatus.state
+            AppProbe.init(this)
+            AppProbe.mark("button:click", "state=$state")
+            // 状态条只作为提示，不再阻断操作：
+            // 远程偏好在本机可能读不到（hook 实际已生效但状态显示「需重启」），
+            // 若在这里 return，用户会永远无法验证功能是否可用。
             if (state != FrameworkStatus.State.ACTIVE) {
+                AppProbe.mark("button:stateNotActiveProceed", "state=$state")
                 Toast.makeText(this, describeStateHint(state), Toast.LENGTH_SHORT).show()
-                return@setOnClickListener
             }
             showView(false, binding.actionButton)
             showView(true, binding.configListLoadingView)
@@ -206,14 +212,21 @@ class MainActivity : BaseActivity(), CoroutineScope by MainScope() {
         openHint: String,
         closeHint: String
     ) {
-        if (item.ncInfo.importance < 0) return
+        if (item.ncInfo.importance < 0) {
+            AppProbe.mark("toggle:skipNegative", "${item.packageName} imp=${item.ncInfo.importance}")
+            return
+        }
 
         val enable = item.ncInfo.importance == 0
+        AppProbe.mark(
+            "toggle:click", "${item.packageName}/${item.ncInfo.channelId} imp=${item.ncInfo.importance} enable=$enable"
+        )
         launch {
             val success = withContext(Dispatchers.IO) {
                 if (enable) nc.enableSpecificNotification(item)
                 else nc.disableSpecificNotification(item)
             }
+            AppProbe.mark("toggle:result", "${item.packageName}/${item.ncInfo.channelId} success=$success")
 
             if (!success) {
                 Toast.makeText(
