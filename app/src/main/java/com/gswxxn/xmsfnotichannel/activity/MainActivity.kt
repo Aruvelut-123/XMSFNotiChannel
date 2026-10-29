@@ -1,17 +1,26 @@
 package com.gswxxn.xmsfnotichannel.activity
 
+import android.content.ComponentName
 import android.content.Intent
+import android.content.pm.PackageManager
+import android.net.Uri
 import android.widget.Toast
 import androidx.activity.compose.setContent
+import androidx.compose.ui.graphics.ImageBitmap
+import androidx.compose.ui.graphics.asImageBitmap
+import androidx.core.graphics.drawable.toBitmap
 import androidx.lifecycle.lifecycleScope
+import androidx.preference.PreferenceManager
 import com.gswxxn.xmsfnotichannel.BuildConfig
 import com.gswxxn.xmsfnotichannel.R
+import com.gswxxn.xmsfnotichannel.ui.AboutUiState
 import com.gswxxn.xmsfnotichannel.ui.AppIconCache
 import com.gswxxn.xmsfnotichannel.ui.AppTheme
 import com.gswxxn.xmsfnotichannel.ui.AppUi
 import com.gswxxn.xmsfnotichannel.ui.ChannelUi
 import com.gswxxn.xmsfnotichannel.ui.MainScreen
 import com.gswxxn.xmsfnotichannel.ui.MainUiState
+import com.gswxxn.xmsfnotichannel.ui.SettingsUiState
 import com.gswxxn.xmsfnotichannel.ui.toAppUiList
 import com.gswxxn.xmsfnotichannel.utils.AppInfoHelper
 import com.gswxxn.xmsfnotichannel.utils.AppListPermission
@@ -24,6 +33,10 @@ import kotlinx.coroutines.withContext
 
 /**
  * 主界面。UI 由 Miuix（Compose）实现，本类只负责数据驱动。
+ *
+ * 结构对齐 HyperCeiler：[MainScreen] 内部是「首页 / 设置 / 关于」三页
+ * 加悬浮底部导航，设置与关于不再是独立 Activity，
+ * 因此状态全部托管在这里，切页不重建页面也不丢状态。
  */
 class MainActivity : BaseActivity() {
 
@@ -44,9 +57,16 @@ class MainActivity : BaseActivity() {
 
     /** Compose 侧的可变状态 */
     private val uiState = MainUiState()
+    private val settingsState = SettingsUiState()
+    private val aboutState = AboutUiState()
 
     private var channelName = defaultChannelName
     private val appInfo: AppInfoHelper by lazy { AppInfoHelper(this) }
+
+    /** 隐藏桌面图标时的目标组件（避免与 Activity.getComponentName 同名） */
+    private val targetComponent by lazy { ComponentName(this, MainActivity::class.java) }
+
+    private val pref by lazy { PreferenceManager.getDefaultSharedPreferences(this) }
 
     /** 框架状态变化时刷新顶部状态条 */
     private val statusListener: () -> Unit = {
@@ -56,18 +76,53 @@ class MainActivity : BaseActivity() {
     override fun onCreateContent() {
         uiState.versionName = BuildConfig.VERSION_NAME
         uiState.ruleLabel = currentRuleLabel()
+        settingsState.versionName = BuildConfig.VERSION_NAME
+        settingsState.ruleLabel = currentRuleLabel()
+        aboutState.versionName = BuildConfig.VERSION_NAME
+        settingsState.hideIcon = isIconHidden()
 
         setContent {
             AppTheme {
                 MainScreen(
                     ui = uiState,
-                    onOpenSettings = { startActivity(Intent(this, SettingsActivity::class.java)) },
-                    onOpenAbout = { startActivity(Intent(this, AboutPageActivity::class.java)) },
+                    settings = settingsState,
+                    about = aboutState,
+                    onOpenAboutUrl = ::openUrl,
                     onRecheck = ::recheck,
                     onToggleChannel = ::toggleChannel,
                     onToggleApp = ::toggleApp,
                     onEnableAll = ::enableAll,
                     onDisableAll = ::disableAll,
+                    onHideIconChange = ::applyHideIcon,
+                    onEditingValueChange = { settingsState.editingValue = it },
+                    onEditingStart = {
+                        settingsState.editingValue =
+                            pref.getString("search_name", defaultChannelName).orEmpty()
+                        settingsState.editing = true
+                    },
+                    onEditingConfirm = {
+                        // 允许留空：留空表示使用内置关键词表
+                        val value = settingsState.editingValue.trim()
+                        pref.edit().putString("search_name", value).apply()
+                        channelName = value.ifEmpty { defaultChannelName }
+                        val label = currentRuleLabel()
+                        uiState.ruleLabel = label
+                        settingsState.ruleLabel = label
+                        settingsState.editing = false
+                        // 规则变了，立刻按新规则重扫一遍
+                        scan(fresh = true)
+                    },
+                    onEditingDismiss = { settingsState.editing = false },
+                    onEditingReset = {
+                        pref.edit().putString("search_name", defaultChannelName).apply()
+                        channelName = defaultChannelName
+                        settingsState.editingValue = defaultChannelName
+                        val label = currentRuleLabel()
+                        uiState.ruleLabel = label
+                        settingsState.ruleLabel = label
+                        settingsState.editing = false
+                        scan(fresh = true)
+                    },
                 )
             }
         }
@@ -75,10 +130,25 @@ class MainActivity : BaseActivity() {
         // 需求：打开软件没有数据就自动开始检测，用户不必先点一次按钮
         scan(fresh = true)
 
+        // 关于页的图标与头像都在 IO 线程解码，避免首帧卡顿
+        lifecycleScope.launch {
+            aboutState.appIcon = withContext(Dispatchers.IO) {
+                loadDrawableBitmap(R.mipmap.ic_launcher, 180)
+            }
+            val milu = withContext(Dispatchers.IO) {
+                loadDrawableBitmap(R.mipmap.img_developer, 96)
+            }
+            val baymax = withContext(Dispatchers.IO) {
+                loadDrawableBitmap(R.mipmap.img_developer_baymax, 96)
+            }
+            aboutState.devAvatars = milu to baymax
+        }
+
         // 启动时先探测一次包可见性。HyperOS 上 QUERY_ALL_PACKAGES 会显示已授予，
         // 但实际只能看到极少量的包，导致检测永远扫不到东西，提前提示用户。
         lifecycleScope.launch {
             val granted = withContext(Dispatchers.IO) { AppListPermission.isGranted(this@MainActivity) }
+            settingsState.permissionGranted = granted
             if (!granted) {
                 Toast.makeText(
                     this@MainActivity,
@@ -89,13 +159,44 @@ class MainActivity : BaseActivity() {
         }
     }
 
+    private fun loadDrawableBitmap(resId: Int, size: Int): ImageBitmap? = runCatching {
+        getDrawable(resId)?.toBitmap(size, size)?.asImageBitmap()
+    }.getOrNull()
+
+    private fun openUrl(url: String) {
+        runCatching {
+            startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(url)))
+        }.onFailure {
+            Toast.makeText(this, R.string.check_active_toast, Toast.LENGTH_SHORT).show()
+        }
+    }
+
     /** 当前生效规则的可读描述 */
     private fun currentRuleLabel(): String =
         channelName.ifBlank { ChannelMatcher.defaultDescription() }
 
+    private fun isIconHidden(): Boolean =
+        packageManager.getComponentEnabledSetting(targetComponent) ==
+            PackageManager.COMPONENT_ENABLED_STATE_DISABLED
+
+    private fun applyHideIcon(hidden: Boolean) {
+        settingsState.hideIcon = hidden
+        val newState = if (hidden) {
+            PackageManager.COMPONENT_ENABLED_STATE_DISABLED
+        } else {
+            PackageManager.COMPONENT_ENABLED_STATE_DEFAULT
+        }
+        packageManager.setComponentEnabledSetting(
+            targetComponent,
+            newState,
+            PackageManager.DONT_KILL_APP
+        )
+    }
+
     private fun syncFrameworkState() {
         uiState.state = FrameworkStatus.state
         uiState.frameworkDesc = FrameworkStatus.describe()
+        settingsState.frameworkDesc = FrameworkStatus.describe()
     }
 
     /**
@@ -120,7 +221,7 @@ class MainActivity : BaseActivity() {
 
                 // 同一包名只解一次图标，结果复用到所有通道上。
                 // 用 groupBy 一次分组，避免每个包都去 firstOrNull 扫全表（O(n²)）。
-                val icons = HashMap<String, androidx.compose.ui.graphics.ImageBitmap?>()
+                val icons = HashMap<String, ImageBitmap?>()
                 list.groupBy { it.packageName }.forEach { (pkg, items) ->
                     icons[pkg] = AppIconCache.load(
                         context = this@MainActivity,
@@ -254,12 +355,13 @@ class MainActivity : BaseActivity() {
 
     override fun onResume() {
         super.onResume()
-        channelName = androidx.preference.PreferenceManager
-            .getDefaultSharedPreferences(this)
-            .getString("search_name", defaultChannelName)
+        channelName = pref.getString("search_name", defaultChannelName)
             .orEmpty()
             .ifEmpty { defaultChannelName }
-        uiState.ruleLabel = currentRuleLabel()
+        val label = currentRuleLabel()
+        uiState.ruleLabel = label
+        settingsState.ruleLabel = label
+        settingsState.hideIcon = isIconHidden()
 
         FrameworkStatus.addListener(statusListener)
         FrameworkStatus.refresh()

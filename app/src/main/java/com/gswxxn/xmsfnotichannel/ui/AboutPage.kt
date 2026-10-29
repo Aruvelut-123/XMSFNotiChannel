@@ -18,6 +18,7 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -30,14 +31,8 @@ import androidx.compose.ui.unit.sp
 import com.gswxxn.xmsfnotichannel.R
 import top.yukonga.miuix.kmp.basic.BasicComponent
 import top.yukonga.miuix.kmp.basic.Card
-import top.yukonga.miuix.kmp.basic.Icon
-import top.yukonga.miuix.kmp.basic.IconButton
-import top.yukonga.miuix.kmp.basic.Scaffold
 import top.yukonga.miuix.kmp.basic.SmallTitle
-import top.yukonga.miuix.kmp.basic.SmallTopAppBar
 import top.yukonga.miuix.kmp.basic.Text
-import top.yukonga.miuix.kmp.icon.MiuixIcons
-import top.yukonga.miuix.kmp.icon.extended.Back
 import top.yukonga.miuix.kmp.theme.MiuixTheme
 
 /** 开源许可条目 */
@@ -48,49 +43,54 @@ data class LicenseEntry(
     val license: String,
 )
 
+/** 开发者条目 */
+data class DeveloperEntry(
+    val name: String,
+    val subtitle: String,
+    val url: String,
+    val avatar: ImageBitmap?,
+)
+
 /**
- * 关于页，布局参考 HyperCeiler：
- * 顶部居中显示图标 + 名称 + 版本，下面按「开源仓库 / 开发者 / 开放源代码许可」分卡片。
+ * 关于页（三页结构里的第三页）。
  *
- * 注意：搜索规则设置已搬到独立的设置页，本页不再有隐藏的连点入口。
+ * 与旧版 [AboutScreen] 的区别：
+ * - 不再自带 `Scaffold` 与返回按钮，顶栏由 [MainScreen] 提供；
+ * - 整页铺在 [AboutBackdrop] 的渐变光斑背景上（对齐 HyperCeiler
+ *   关于页「彩光缓慢游动」的观感，但用 Canvas 径向渐变实现，
+ *   不上 RuntimeShader，避免上一版的离屏层掉帧）。
  */
 @Composable
-fun AboutScreen(
-    versionName: String,
-    appIcon: ImageBitmap?,
-    onBack: () -> Unit,
+fun AboutPage(
+    about: AboutUiState,
     onOpenUrl: (String) -> Unit,
-    licenses: List<LicenseEntry>,
-    developers: List<DeveloperEntry>,
 ) {
     val context = LocalContext.current
     val colorScheme = MiuixTheme.colorScheme
 
-    Scaffold(
-        topBar = {
-            SmallTopAppBar(
-                title = context.getString(R.string.about),
-                navigationIcon = {
-                    IconButton(onClick = onBack) {
-                        Icon(
-                            imageVector = MiuixIcons.Back,
-                            contentDescription = context.getString(R.string.alert_cancel),
-                            tint = colorScheme.onSurfaceVariantActions,
-                            modifier = Modifier.size(24.dp),
-                        )
-                    }
-                },
-            )
-        }
-    ) { innerPadding ->
+    val licenses = remember { defaultLicenses() }
+    val developers = listOf(
+        DeveloperEntry(
+            name = context.getString(R.string.developer_milu),
+            subtitle = "",
+            url = "http://www.coolapk.com/u/1189245",
+            avatar = about.devAvatars.first,
+        ),
+        DeveloperEntry(
+            name = context.getString(R.string.developer_baymax),
+            subtitle = "Android 17 适配 / libxposed 重构",
+            url = "https://github.com/Aruvelut-123",
+            avatar = about.devAvatars.second,
+        ),
+    )
+
+    AboutBackdrop(modifier = Modifier.fillMaxSize()) {
         LazyColumn(
-            modifier = Modifier
-                .fillMaxSize()
-                .padding(innerPadding),
-            contentPadding = PaddingValues(bottom = 32.dp),
+            modifier = Modifier.fillMaxSize(),
+            contentPadding = PaddingValues(bottom = 96.dp),
         ) {
             item {
-                Header(versionName = versionName, icon = appIcon)
+                Header(versionName = about.versionName, icon = about.appIcon)
             }
 
             // 开源仓库
@@ -181,7 +181,7 @@ fun AboutScreen(
                     horizontalAlignment = Alignment.CenterHorizontally,
                 ) {
                     Text(
-                        text = context.getString(R.string.version, versionName),
+                        text = context.getString(R.string.version, about.versionName),
                         fontSize = 12.sp,
                         color = colorScheme.onSurfaceVariantSummary,
                     )
@@ -191,12 +191,44 @@ fun AboutScreen(
     }
 }
 
-/** 开发者条目 */
-data class DeveloperEntry(
-    val name: String,
-    val subtitle: String,
-    val url: String,
-    val avatar: ImageBitmap?,
+/** 许可列表是常量，用 remember 避免每次重组都重新构造 */
+private fun defaultLicenses(): List<LicenseEntry> = listOf(
+    LicenseEntry(
+        "Miuix",
+        "compose-miuix-ui",
+        "https://github.com/compose-miuix-ui/miuix",
+        "Apache License 2.0"
+    ),
+    LicenseEntry(
+        "YukiHookAPI",
+        "HighCapable",
+        "https://github.com/HighCapable/YukiHookAPI",
+        "Apache License 2.0"
+    ),
+    LicenseEntry(
+        "MIUINativeNotifyIcon",
+        "fankes",
+        "https://github.com/fankes/MIUINativeNotifyIcon",
+        "GNU Affero General Public License v3.0"
+    ),
+    LicenseEntry(
+        "Hide-My-Applist",
+        "Dr-TSNG",
+        "https://github.com/Dr-TSNG/Hide-My-Applist",
+        "GNU Affero General Public License v3.0"
+    ),
+    LicenseEntry(
+        "libxposed API",
+        "LSPosed",
+        "https://github.com/libxposed/api",
+        "Apache License 2.0"
+    ),
+    LicenseEntry(
+        "HiddenApiBypass",
+        "LSPosed",
+        "https://github.com/LSPosed/AndroidHiddenApiBypass",
+        "Apache License 2.0"
+    ),
 )
 
 /** 页面头部：图标 + 名称 + 版本 */
