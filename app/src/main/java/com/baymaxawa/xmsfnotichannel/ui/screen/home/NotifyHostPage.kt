@@ -34,7 +34,12 @@ fun NotifyHostPageView(
     val context = LocalContext.current
     val lifecycleOwner = LocalLifecycleOwner.current
 
-    val ui = remember { NotifyHomeUi() }
+    // 状态用进程级单例而不是 remember：
+    // Pager 只保留相邻一页，切到设置/关于时本页会离开组合，
+    // remember 里的扫描结果会被销毁，切回来就空了（见 NotifyHomeUiHolder 注释）。
+    val ui = NotifyHomeUiHolder.instance
+    // controller 仍需跟随 composition 重建（它持有 lifecycleScope 与监听器），
+    // 但 ui 是共享的，重建时列表数据还在，不会重新扫描。
     val controller = remember(lifecycleOwner, context) {
         NotifyHomeController(owner = lifecycleOwner, ui = ui, context = context)
     }

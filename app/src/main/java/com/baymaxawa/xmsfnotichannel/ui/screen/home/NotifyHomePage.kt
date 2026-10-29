@@ -63,7 +63,7 @@ import top.yukonga.miuix.kmp.basic.Text as MiuixText
 import top.yukonga.miuix.kmp.icon.MiuixIcons
 import top.yukonga.miuix.kmp.icon.extended.More
 import top.yukonga.miuix.kmp.icon.extended.Refresh
-import top.yukonga.miuix.kmp.overlay.OverlayListPopup
+import top.yukonga.miuix.kmp.window.WindowListPopup
 import top.yukonga.miuix.kmp.theme.MiuixTheme
 import top.yukonga.miuix.kmp.utils.PressFeedbackType
 
@@ -118,7 +118,10 @@ fun NotifyHomePageView(
                                     modifier = Modifier.size(24.dp),
                                 )
                             }
-                            OverlayListPopup(
+                            // 必须用 WindowListPopup：OverlayListPopup 走 MiuixPopupUtils 的
+                            // 全局队列，需要根布局挂 MiuixPopupHost 才会被渲染。本项目没挂，
+                            // 所以点三点菜单毫无反应。WindowListPopup 自己开窗口，不依赖宿主。
+                            WindowListPopup(
                                 show = menuShow,
                                 alignment = PopupPositionProvider.Align.End,
                                 onDismissRequest = { menuShow = false },

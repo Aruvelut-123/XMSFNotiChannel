@@ -36,3 +36,19 @@ class NotifyHomeUi {
 
     var loading by mutableStateOf(false)
 }
+
+/**
+ * 功能页状态的进程级存放点。
+ *
+ * 为什么不能只用 `remember { NotifyHomeUi() }`：
+ * 主页用的是 HorizontalPager，`beyondViewportPageCount = 1` 只会保留相邻一页，
+ * 从功能页切到设置/关于时整页会被移出组合，remember 里的扫描结果随之销毁，
+ * 再切回来就变成空列表，得重新扫一遍（几百次 Binder 调用，要等好几秒）。
+ *
+ * 因此把状态提到进程级：只要 App 没被杀，检测结果就一直留着。
+ * 需要强制重扫时走「重新检测」按钮（会显式调 scan(fresh = true)），
+ * 不受这里缓存的影响。
+ */
+object NotifyHomeUiHolder {
+    val instance: NotifyHomeUi by lazy { NotifyHomeUi() }
+}
