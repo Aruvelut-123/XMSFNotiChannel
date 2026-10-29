@@ -12,6 +12,7 @@ import com.gswxxn.xmsfnotichannel.R
 import com.gswxxn.xmsfnotichannel.databinding.ActivityMainBinding
 import com.gswxxn.xmsfnotichannel.databinding.AdapterConfigBinding
 import com.gswxxn.xmsfnotichannel.utils.AppInfoHelper
+import com.gswxxn.xmsfnotichannel.utils.AppListPermission
 import com.gswxxn.xmsfnotichannel.utils.AppProbe
 import com.gswxxn.xmsfnotichannel.utils.ChannelMatcher
 import com.gswxxn.xmsfnotichannel.utils.FrameworkStatus
@@ -81,11 +82,15 @@ class MainActivity : BaseActivity(), CoroutineScope by MainScope() {
                 onRefreshList?.invoke()
 
                 if (appInfoFilter.isEmpty()) {
-                    Toast.makeText(
-                        this@MainActivity,
-                        getString(R.string.no_channel_found, currentRuleLabel()),
-                        Toast.LENGTH_LONG
-                    ).show()
+                    // 空结果优先怀疑包可见性：HyperOS 上没开「获取应用列表」时
+                    // 只能看到极少的包，扫描必然是空的，此时提示去开权限才有意义。
+                    val noPermission = !AppListPermission.isGranted(this@MainActivity)
+                    val message = if (noPermission) {
+                        getString(R.string.hint_no_app_list_permission)
+                    } else {
+                        getString(R.string.no_channel_found, currentRuleLabel())
+                    }
+                    Toast.makeText(this@MainActivity, message, Toast.LENGTH_LONG).show()
                 }
             }
         }
@@ -142,6 +147,16 @@ class MainActivity : BaseActivity(), CoroutineScope by MainScope() {
         }
 
         setupList()
+
+        // 启动时先探测一次包可见性。HyperOS 上 QUERY_ALL_PACKAGES 会显示已授予，
+        // 但实际只能看到极少量的包，导致「开始检测」永远扫不到东西，提前提示用户。
+        // 全量枚举包有几十毫秒开销，放 IO 线程做，不阻塞首屏。
+        launch {
+            val granted = withContext(Dispatchers.IO) { AppListPermission.isGranted(this@MainActivity) }
+            if (!granted) {
+                Toast.makeText(this@MainActivity, R.string.hint_no_app_list_permission, Toast.LENGTH_LONG).show()
+            }
+        }
     }
 
     /** 当前生效规则的可读描述，用于「未找到通道」提示 */

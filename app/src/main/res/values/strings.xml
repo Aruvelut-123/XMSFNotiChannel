@@ -36,6 +36,7 @@
     <string name="hint_not_in_scope">请在模块作用域中勾选「系统框架」</string>
     <string name="hint_restart_needed">作用域已就绪，请重启手机让 hook 生效</string>
     <string name="hint_ready">模块已就绪</string>
+    <string name="hint_no_app_list_permission">未获得「获取应用列表」权限，请在系统设置中为本应用开启后重试</string>
 
     <!-- 操作结果 -->
     <string name="no_channel_found">未找到匹配「%s」的通知通道</string>
