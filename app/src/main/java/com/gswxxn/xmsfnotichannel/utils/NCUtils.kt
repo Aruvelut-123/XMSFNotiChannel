@@ -8,6 +8,7 @@ import android.content.Context
 import android.os.IBinder
 import android.util.Log
 import org.lsposed.hiddenapibypass.HiddenApiBypass
+import java.io.File
 import java.lang.reflect.Method
 
 /**
@@ -91,6 +92,20 @@ class NCUtils(private val context: Context) {
             bypassInstalled = true
         }
     }
+    /**
+     * App 侧落盘日志。App 进程无权限写 /data/system，
+     * 因此写到应用自己的外部目录，这样排查时用 root 一定能读到。
+     */
+    private fun writeAppProbe(stage: String, extra: String = "") {
+        runCatching {
+            val dir = File(context.filesDir, "probe")
+            if (!dir.exists()) dir.mkdirs()
+            File(dir, "app_probe.log").appendText(
+                "stage=$stage pid=${android.os.Process.myPid()} uid=${android.os.Process.myUid()} " +
+                    "at=${System.currentTimeMillis()} $extra\n"
+            )
+        }
+    }
 
     /** ParceledListSlice -> List，优先 getList()，失败则读 mList 字段 */
     private fun unwrapParceledList(slice: Any?): List<Any> {
@@ -140,7 +155,10 @@ class NCUtils(private val context: Context) {
                         channelId = id
                     )
                 }
-        }.onFailure { Log.w(TAG, "读取 $pkgName 通道失败", it) }
+        }.onFailure {
+            Log.w(TAG, "读取 $pkgName 通道失败", it)
+            writeAppProbe("readChannels:fail", "$pkgName ${it::class.java.name}: ${it.message}")
+        }
 
         // 分组粒度：补全组名 + 兜底漏项
         runCatching {
@@ -212,9 +230,14 @@ class NCUtils(private val context: Context) {
                 iNotificationManager, appInfo.packageName, uid, channel
             )
             Log.i(TAG, "已设置 ${appInfo.packageName}/${target.channelId} -> importance=$targetImportance")
+            writeAppProbe("setChannelImportance:ok", "${appInfo.packageName}/${target.channelId}")
             true
         }.onFailure {
             Log.w(TAG, "修改 ${appInfo.packageName}/${target.channelId} 失败", it)
+            writeAppProbe(
+                "setChannelImportance:fail",
+                "${appInfo.packageName}/${target.channelId} ${it::class.java.name}: ${it.message}"
+            )
         }.getOrDefault(false)
     }
 

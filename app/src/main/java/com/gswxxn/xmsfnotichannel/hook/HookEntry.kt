@@ -207,8 +207,16 @@ object HookEntry : YukiHookXposedModule {
                         method.isAccessible = true
                         method.hook {
                             before {
-                                // 只有本模块发起的 Binder 调用才伪装成系统，其余原样透传
-                                if (Binder.getCallingUid() == moduleUid) result = true
+                                // 只记录「本模块自身的调用」，避免被系统其它进程刷爆探针文件。
+                                // 用途：区分「hook 没挂上」与「hook 挂上了但 App 走的是别的方法」。
+                                val callerUid = Binder.getCallingUid()
+                                if (callerUid == moduleUid) {
+                                    DiagnosticProbe.mark(
+                                        "hit:$name",
+                                        "callerUid=$callerUid"
+                                    )
+                                    result = true
+                                }
                             }
                         }
                         hooked += name
