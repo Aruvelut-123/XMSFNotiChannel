@@ -25,33 +25,39 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.graphics.painter.BitmapPainter
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import androidx.core.graphics.drawable.toBitmap
 import com.gswxxn.xmsfnotichannel.R
-import com.gswxxn.xmsfnotichannel.utils.AppInfoHelper
 import com.gswxxn.xmsfnotichannel.utils.FrameworkStatus
 import top.yukonga.miuix.kmp.basic.Card
 import top.yukonga.miuix.kmp.basic.CircularProgressIndicator
+import top.yukonga.miuix.kmp.basic.DropdownImpl
 import top.yukonga.miuix.kmp.basic.Icon
 import top.yukonga.miuix.kmp.basic.IconButton
+import top.yukonga.miuix.kmp.basic.ListPopupColumn
+import top.yukonga.miuix.kmp.basic.PopupPositionProvider
 import top.yukonga.miuix.kmp.basic.Scaffold
+import top.yukonga.miuix.kmp.basic.SmallTitle
 import top.yukonga.miuix.kmp.basic.SmallTopAppBar
 import top.yukonga.miuix.kmp.basic.Switch
 import top.yukonga.miuix.kmp.basic.Text
 import top.yukonga.miuix.kmp.basic.TextButton
-import top.yukonga.miuix.kmp.theme.MiuixTheme
 import top.yukonga.miuix.kmp.icon.MiuixIcons
-import top.yukonga.miuix.kmp.icon.extended.Info
+import top.yukonga.miuix.kmp.icon.extended.Back
+import top.yukonga.miuix.kmp.icon.extended.More
+import top.yukonga.miuix.kmp.icon.extended.Settings
+import top.yukonga.miuix.kmp.overlay.OverlayListPopup
+import top.yukonga.miuix.kmp.theme.MiuixTheme
 
 /**
  * 主页面 UI 状态。
  *
- * 把所有可变状态集中到这里，Activity 只负责驱动数据。
+ * 可变状态全部集中在这里，Activity 只负责驱动数据。
+ * 注意：[apps] 里的 [AppUi] / [ChannelUi] 自带可变状态，
+ * 单个通道开关**不需要**重建整个列表。
  */
 class MainUiState {
     var state by mutableStateOf(FrameworkStatus.State.INACTIVE)
@@ -59,35 +65,129 @@ class MainUiState {
     var versionName by mutableStateOf("")
     var ruleLabel by mutableStateOf("")
 
-    /** null 表示还没开始检测（显示开始按钮） */
-    var items by mutableStateOf<List<AppInfoHelper.MyAppInfo>?>(null)
+    /** null 表示还没开始检测 */
+    var apps by mutableStateOf<List<AppUi>?>(null)
     var loading by mutableStateOf(false)
 }
 
 /**
- * 主页面。
+ * 主页面：应用分组列表 + 应用详情页。
  *
- * @param ui 界面状态
- * @param onOpenAbout 打开关于页
- * @param onToggle 点击某一项开关（参数：目标项、是否要开启）
- * @param onRecheck 重新检测
- * @param onEnableAll 全部开启
- * @param onDisableAll 全部关闭
+ * 结构参考 HyperCeiler：
+ * - 首页按应用分组，一行一个应用，右侧是这个应用的总开关；
+ * - 点进应用才看到每个通道的名字和独立开关；
+ * - 「全部开启 / 全部关闭」收在右上角三点菜单里；
+ * - 设置、关于各有独立页面。
  */
 @Composable
 fun MainScreen(
     ui: MainUiState,
+    onOpenSettings: () -> Unit,
     onOpenAbout: () -> Unit,
-    onToggle: (AppInfoHelper.MyAppInfo, Boolean) -> Unit,
     onRecheck: () -> Unit,
+    onToggleChannel: (ChannelUi, Boolean) -> Unit,
+    onToggleApp: (AppUi, Boolean) -> Unit,
     onEnableAll: () -> Unit,
     onDisableAll: () -> Unit,
 ) {
+    var selectedPackage by remember { mutableStateOf<String?>(null) }
+    val apps = ui.apps
+    val current = apps?.firstOrNull { it.packageName == selectedPackage }
+
+    if (current != null) {
+        AppDetailScreen(
+            app = current,
+            onBack = { selectedPackage = null },
+            onToggleChannel = onToggleChannel,
+            onToggleApp = onToggleApp,
+        )
+        return
+    }
+
+    HomeScreen(
+        ui = ui,
+        onOpenSettings = onOpenSettings,
+        onOpenAbout = onOpenAbout,
+        onRecheck = onRecheck,
+        onToggleApp = onToggleApp,
+        onEnableAll = onEnableAll,
+        onDisableAll = onDisableAll,
+        onOpenApp = { selectedPackage = it.packageName },
+    )
+}
+
+/** 首页 */
+@Composable
+private fun HomeScreen(
+    ui: MainUiState,
+    onOpenSettings: () -> Unit,
+    onOpenAbout: () -> Unit,
+    onRecheck: () -> Unit,
+    onToggleApp: (AppUi, Boolean) -> Unit,
+    onEnableAll: () -> Unit,
+    onDisableAll: () -> Unit,
+    onOpenApp: (AppUi) -> Unit,
+) {
+    val context = LocalContext.current
+    val colorScheme = MiuixTheme.colorScheme
+    var menuShow by remember { mutableStateOf(false) }
+
     Scaffold(
         topBar = {
             SmallTopAppBar(
-                title = stringOf(R.string.app_name),
+                title = context.getString(R.string.app_name),
                 subtitle = ui.frameworkDesc,
+                actions = {
+                    // 三点菜单：全部开启 / 全部关闭
+                    Box {
+                        IconButton(onClick = { menuShow = true }) {
+                            Icon(
+                                imageVector = MiuixIcons.More,
+                                contentDescription = context.getString(R.string.more_menu),
+                                tint = colorScheme.onSurfaceVariantActions,
+                                modifier = Modifier.size(24.dp),
+                            )
+                        }
+
+                        OverlayListPopup(
+                            show = menuShow,
+                            alignment = PopupPositionProvider.Align.End,
+                            onDismissRequest = { menuShow = false },
+                            onDismissFinished = { menuShow = false },
+                        ) {
+                            ListPopupColumn {
+                                DropdownImpl(
+                                    text = context.getString(R.string.enable_all),
+                                    optionSize = 2,
+                                    isSelected = false,
+                                    index = 0,
+                                    onSelectedIndexChange = {
+                                        menuShow = false
+                                        onEnableAll()
+                                    },
+                                )
+                                DropdownImpl(
+                                    text = context.getString(R.string.disable_all),
+                                    optionSize = 2,
+                                    isSelected = false,
+                                    index = 1,
+                                    onSelectedIndexChange = {
+                                        menuShow = false
+                                        onDisableAll()
+                                    },
+                                )
+                            }
+                        }
+                    }
+                    IconButton(onClick = onOpenSettings) {
+                        Icon(
+                            imageVector = MiuixIcons.Settings,
+                            contentDescription = context.getString(R.string.settings),
+                            tint = colorScheme.onSurfaceVariantActions,
+                            modifier = Modifier.size(24.dp),
+                        )
+                    }
+                },
             )
         }
     ) { innerPadding ->
@@ -96,61 +196,245 @@ fun MainScreen(
                 .fillMaxSize()
                 .padding(innerPadding)
         ) {
-            StatusCard(ui = ui, onOpenAbout = onOpenAbout)
+            StatusCard(
+                ui = ui,
+                onOpenAbout = onOpenAbout,
+                onRecheck = onRecheck,
+            )
 
-            val items = ui.items
-            if (items == null) {
-                Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+            val apps = ui.apps
+            when {
+                ui.loading -> CenterHint {
+                    CircularProgressIndicator()
+                    Spacer(Modifier.height(12.dp))
+                    Text(
+                        text = context.getString(R.string.loading),
+                        color = colorScheme.onSurfaceVariantSummary,
+                        fontSize = 14.sp,
+                    )
+                }
+
+                apps == null -> CenterHint {
                     TextButton(
-                        text = stringOf(R.string.start_check),
+                        text = context.getString(R.string.start_check),
                         onClick = onRecheck,
                     )
                 }
-            } else if (ui.loading) {
-                Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-                    Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                        CircularProgressIndicator()
-                        Spacer(Modifier.height(12.dp))
-                        Text(
-                            text = stringOf(R.string.loading),
-                            color = MiuixTheme.colorScheme.onSurfaceVariantSummary,
-                            fontSize = 14.sp,
-                        )
-                    }
-                }
-            } else if (items.isEmpty()) {
-                Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+
+                apps.isEmpty() -> CenterHint {
                     Text(
-                        text = stringOf(R.string.no_channel_found, ui.ruleLabel),
-                        color = MiuixTheme.colorScheme.onSurfaceVariantSummary,
+                        text = context.getString(R.string.no_channel_found, ui.ruleLabel),
+                        color = colorScheme.onSurfaceVariantSummary,
                         fontSize = 14.sp,
                         modifier = Modifier.padding(24.dp),
                     )
                 }
-            } else {
-                ChannelList(items = items, onToggle = onToggle)
-            }
 
-            if (items != null && !ui.loading) {
-                BottomActions(
-                    onRecheck = onRecheck,
-                    onEnableAll = onEnableAll,
-                    onDisableAll = onDisableAll,
+                else -> AppGroupList(
+                    apps = apps,
+                    onOpenApp = onOpenApp,
+                    onToggleApp = onToggleApp,
                 )
             }
         }
     }
 }
 
+/** 应用详情页：展示该应用下每个检测到的通道 */
+@Composable
+private fun AppDetailScreen(
+    app: AppUi,
+    onBack: () -> Unit,
+    onToggleChannel: (ChannelUi, Boolean) -> Unit,
+    onToggleApp: (AppUi, Boolean) -> Unit,
+) {
+    val context = LocalContext.current
+    val colorScheme = MiuixTheme.colorScheme
+    val allOn = app.allEnabled
+
+    Scaffold(
+        topBar = {
+            SmallTopAppBar(
+                title = app.appName,
+                subtitle = context.getString(
+                    R.string.app_enabled_summary,
+                    app.enabledCount,
+                    app.totalCount,
+                ),
+                navigationIcon = {
+                    IconButton(onClick = onBack) {
+                        Icon(
+                            imageVector = MiuixIcons.Back,
+                            contentDescription = context.getString(R.string.alert_cancel),
+                            tint = colorScheme.onSurfaceVariantActions,
+                            modifier = Modifier.size(24.dp),
+                        )
+                    }
+                },
+            )
+        }
+    ) { innerPadding ->
+        LazyColumn(
+            modifier = Modifier
+                .fillMaxSize()
+                .padding(innerPadding),
+            contentPadding = PaddingValues(bottom = 24.dp),
+        ) {
+            item {
+                Card(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = 12.dp, vertical = 10.dp),
+                    insideMargin = PaddingValues(horizontal = 16.dp, vertical = 12.dp),
+                ) {
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Column(modifier = Modifier.weight(1f)) {
+                            Text(
+                                text = context.getString(R.string.toggle_all_for_app),
+                                fontSize = 15.sp,
+                                fontWeight = FontWeight.Medium,
+                                color = colorScheme.onSurfaceContainer,
+                            )
+                            Text(
+                                text = context.getString(
+                                    R.string.app_enabled_summary,
+                                    app.enabledCount,
+                                    app.totalCount,
+                                ),
+                                fontSize = 12.sp,
+                                color = colorScheme.onSurfaceContainerVariant,
+                            )
+                        }
+                        Switch(
+                            checked = allOn,
+                            onCheckedChange = { onToggleApp(app, it) },
+                        )
+                    }
+                }
+            }
+
+            item { SmallTitle(text = context.getString(R.string.channel_list)) }
+
+            items(items = app.channels, key = { it.channelId + "|" + it.displayName }) { channel ->
+                Card(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = 12.dp, vertical = 4.dp),
+                    insideMargin = PaddingValues(horizontal = 16.dp, vertical = 12.dp),
+                ) {
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Text(
+                            text = channel.displayName,
+                            fontSize = 15.sp,
+                            color = colorScheme.onSurfaceContainer,
+                            modifier = Modifier.weight(1f),
+                        )
+                        Switch(
+                            checked = channel.enabled,
+                            onCheckedChange = { onToggleChannel(channel, it) },
+                        )
+                    }
+                }
+            }
+        }
+    }
+}
+
+/** 应用分组列表 */
+@Composable
+private fun AppGroupList(
+    apps: List<AppUi>,
+    onOpenApp: (AppUi) -> Unit,
+    onToggleApp: (AppUi, Boolean) -> Unit,
+) {
+    val context = LocalContext.current
+    val colorScheme = MiuixTheme.colorScheme
+
+    LazyColumn(
+        modifier = Modifier.fillMaxSize(),
+        contentPadding = PaddingValues(horizontal = 12.dp, vertical = 8.dp),
+        verticalArrangement = Arrangement.spacedBy(8.dp),
+    ) {
+        items(items = apps, key = { it.packageName }) { app ->
+            // 开关状态直接由通道的 importance 派生：点击后 Activity 会改
+            // ChannelUi.importance，这里读到的就是最新值，无需本地副本。
+            val switchOn = app.allEnabled
+
+            Card(
+                modifier = Modifier.fillMaxWidth(),
+                insideMargin = PaddingValues(14.dp),
+                onClick = { onOpenApp(app) },
+            ) {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    AppIcon(app)
+                    Spacer(Modifier.width(14.dp))
+                    Column(modifier = Modifier.weight(1f)) {
+                        Text(
+                            text = app.appName,
+                            fontSize = 15.sp,
+                            fontWeight = FontWeight.Medium,
+                            color = colorScheme.onSurfaceContainer,
+                            maxLines = 1,
+                        )
+                        Spacer(Modifier.height(2.dp))
+                        Text(
+                            text = context.getString(
+                                R.string.app_enabled_summary,
+                                app.enabledCount,
+                                app.totalCount,
+                            ),
+                            fontSize = 12.sp,
+                            color = colorScheme.onSurfaceContainerVariant,
+                        )
+                    }
+                    Spacer(Modifier.width(10.dp))
+                    Switch(
+                        checked = switchOn,
+                        onCheckedChange = { onToggleApp(app, it) },
+                    )
+                }
+            }
+        }
+    }
+}
+
+/** 应用图标（图标已在 IO 线程解码好并缓存在 [AppUi.icon] 里） */
+@Composable
+private fun AppIcon(app: AppUi) {
+    val colorScheme = MiuixTheme.colorScheme
+    val icon = app.icon
+    if (icon != null) {
+        Image(
+            painter = BitmapPainter(icon),
+            contentDescription = null,
+            modifier = Modifier
+                .size(40.dp)
+                .clip(RoundedCornerShape(12.dp)),
+        )
+    } else {
+        Box(
+            modifier = Modifier
+                .size(40.dp)
+                .clip(RoundedCornerShape(12.dp))
+                .background(colorScheme.surfaceContainerHigh)
+        )
+    }
+}
+
 /** 顶部状态卡：模块激活状态、版本、当前规则 */
 @Composable
-private fun StatusCard(ui: MainUiState, onOpenAbout: () -> Unit) {
+private fun StatusCard(
+    ui: MainUiState,
+    onOpenAbout: () -> Unit,
+    onRecheck: () -> Unit,
+) {
+    val context = LocalContext.current
     val colorScheme = MiuixTheme.colorScheme
     val (title, tint) = when (ui.state) {
-        FrameworkStatus.State.ACTIVE -> stringOf(R.string.module_is_active) to colorScheme.primary
-        FrameworkStatus.State.RESTART_NEEDED -> stringOf(R.string.try_reboot) to colorScheme.error
-        FrameworkStatus.State.NOT_IN_SCOPE -> stringOf(R.string.module_not_in_scope) to colorScheme.error
-        FrameworkStatus.State.INACTIVE -> stringOf(R.string.module_is_not_active) to colorScheme.error
+        FrameworkStatus.State.ACTIVE -> context.getString(R.string.module_is_active) to colorScheme.primary
+        FrameworkStatus.State.RESTART_NEEDED -> context.getString(R.string.try_reboot) to colorScheme.error
+        FrameworkStatus.State.NOT_IN_SCOPE -> context.getString(R.string.module_not_in_scope) to colorScheme.error
+        FrameworkStatus.State.INACTIVE -> context.getString(R.string.module_is_not_active) to colorScheme.error
     }
 
     Card(
@@ -169,23 +453,25 @@ private fun StatusCard(ui: MainUiState, onOpenAbout: () -> Unit) {
                 )
                 Spacer(Modifier.height(4.dp))
                 Text(
-                    text = stringOf(R.string.module_version, ui.versionName),
+                    text = context.getString(R.string.module_version, ui.versionName),
                     fontSize = 13.sp,
                     color = colorScheme.onSurfaceVariantSummary,
                 )
-                if (ui.frameworkDesc.isNotEmpty()) {
-                    Spacer(Modifier.height(2.dp))
-                    Text(
-                        text = stringOf(R.string.xposed_framework_version, ui.frameworkDesc),
-                        fontSize = 12.sp,
-                        color = colorScheme.onSurfaceVariantSummary,
-                    )
-                }
+                Spacer(Modifier.height(2.dp))
+                Text(
+                    text = context.getString(R.string.current_rule, ui.ruleLabel),
+                    fontSize = 12.sp,
+                    color = colorScheme.onSurfaceVariantSummary,
+                )
             }
+            TextButton(
+                text = context.getString(R.string.recheck),
+                onClick = onRecheck,
+            )
             IconButton(onClick = onOpenAbout) {
                 Icon(
                     imageVector = MiuixIcons.Info,
-                    contentDescription = stringOf(R.string.about),
+                    contentDescription = context.getString(R.string.about),
                     tint = colorScheme.onSurfaceVariantActions,
                     modifier = Modifier.size(24.dp),
                 )
@@ -194,106 +480,15 @@ private fun StatusCard(ui: MainUiState, onOpenAbout: () -> Unit) {
     }
 }
 
-/** 通道列表 */
+/** 居中提示块 */
 @Composable
-private fun ChannelList(
-    items: List<AppInfoHelper.MyAppInfo>,
-    onToggle: (AppInfoHelper.MyAppInfo, Boolean) -> Unit,
-) {
-    val colorScheme = MiuixTheme.colorScheme
-    val showChannelName = items.any { it.ncInfo.channelName.isNotEmpty() }
-
-    LazyColumn(
+private fun CenterHint(content: @Composable () -> Unit) {
+    Box(
         modifier = Modifier.fillMaxSize(),
-        contentPadding = PaddingValues(horizontal = 12.dp, vertical = 8.dp),
-        verticalArrangement = Arrangement.spacedBy(8.dp),
+        contentAlignment = Alignment.Center,
     ) {
-        items(items) { item ->
-            val enabled = item.ncInfo.importance > 0
-            Card(
-                modifier = Modifier.fillMaxWidth(),
-                insideMargin = PaddingValues(14.dp),
-            ) {
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    val icon = remember(item.packageName) {
-                        runCatching { item.icon.toBitmap(96, 96).asImageBitmap() }.getOrNull()
-                    }
-                    if (icon != null) {
-                        Image(
-                            painter = BitmapPainter(icon),
-                            contentDescription = null,
-                            modifier = Modifier
-                                .size(40.dp)
-                                .clip(RoundedCornerShape(12.dp)),
-                        )
-                    } else {
-                        Box(
-                            modifier = Modifier
-                                .size(40.dp)
-                                .clip(RoundedCornerShape(12.dp))
-                                .background(colorScheme.surfaceContainerHigh)
-                        )
-                    }
-
-                    Spacer(Modifier.width(14.dp))
-
-                    Column(modifier = Modifier.weight(1f)) {
-                        Text(
-                            text = item.appName,
-                            fontSize = 15.sp,
-                            fontWeight = FontWeight.Medium,
-                            color = colorScheme.onSurfaceContainer,
-                        )
-                        if (showChannelName && item.ncInfo.channelName.isNotEmpty()) {
-                            Spacer(Modifier.height(2.dp))
-                            Text(
-                                text = item.ncInfo.channelName,
-                                fontSize = 12.sp,
-                                color = colorScheme.onSurfaceContainerVariant,
-                                maxLines = 1,
-                            )
-                        }
-                    }
-
-                    Spacer(Modifier.width(10.dp))
-
-                    Switch(
-                        checked = enabled,
-                        onCheckedChange = { onToggle(item, it) },
-                    )
-                }
-            }
+        Column(horizontalAlignment = Alignment.CenterHorizontally) {
+            content()
         }
     }
-}
-
-/** 底部三个操作按钮 */
-@Composable
-private fun BottomActions(
-    onRecheck: () -> Unit,
-    onEnableAll: () -> Unit,
-    onDisableAll: () -> Unit,
-) {
-    Row(
-        modifier = Modifier
-            .fillMaxWidth()
-            .padding(horizontal = 12.dp, vertical = 10.dp),
-        horizontalArrangement = Arrangement.spacedBy(10.dp),
-        verticalAlignment = Alignment.CenterVertically,
-    ) {
-        TextButton(text = stringOf(R.string.recheck), onClick = onRecheck, modifier = Modifier.weight(1f))
-        TextButton(text = stringOf(R.string.enable_all), onClick = onEnableAll, modifier = Modifier.weight(1f))
-        TextButton(text = stringOf(R.string.disable_all), onClick = onDisableAll, modifier = Modifier.weight(1f))
-    }
-}
-
-/**
- * 取字符串资源。
- *
- * Compose 里没有 Context 时从 `App.instance` 取（Application 在 onCreate 已初始化）。
- */
-@Composable
-private fun stringOf(id: Int, vararg args: Any): String {
-    val context = androidx.compose.ui.platform.LocalContext.current
-    return context.getString(id, *args)
 }

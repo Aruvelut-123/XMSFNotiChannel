@@ -12,6 +12,9 @@
         android:icon="@mipmap/ic_launcher"
         tools:targetApi="31">
         <activity
+            android:name=".activity.SettingsActivity"
+            android:exported="false"/>
+        <activity
             android:name=".activity.AboutPageActivity"
             android:exported="false"/>
         <activity

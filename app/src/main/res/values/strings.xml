@@ -55,4 +55,26 @@
     <string name="open_source_repo">开源仓库</string>
     <string name="open_source_license">开放源代码许可</string>
     <string name="hide_icon">隐藏桌面图标</string>
+
+    <!-- 多页面结构 -->
+    <string name="settings">设置</string>
+    <string name="more_menu">更多</string>
+    <string name="channel_list">通知通道</string>
+    <string name="toggle_all_for_app">此应用的全部通道</string>
+    <string name="app_enabled_summary">已开启 %1$d / %2$d</string>
+    <string name="current_rule">当前规则：%s</string>
+    <string name="settings_notification">通知通道</string>
+    <string name="settings_appearance">外观</string>
+    <string name="settings_other">其他</string>
+    <string name="settings_about">关于</string>
+    <string name="auto_check">进入应用自动检测</string>
+    <string name="auto_check_summary">打开应用时若没有数据，自动开始检测（当前始终开启）</string>
+    <string name="settings_rule_summary">当前：%s</string>
+    <string name="settings_permission">应用列表权限</string>
+    <string name="settings_permission_ok">已获得</string>
+    <string name="settings_permission_missing">未获得，请到系统设置中开启</string>
+    <string name="settings_framework">框架状态</string>
+    <string name="settings_version">版本</string>
+    <string name="about_translate">参与翻译</string>
+    <string name="about_contributors">贡献者</string>
 </resources>
