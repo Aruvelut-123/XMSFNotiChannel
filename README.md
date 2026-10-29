@@ -1,42 +1,47 @@
-# 你这运营消息根本全都是广告吧
+# 通知哨兵 · NotiSentry
 
-[![Xposed](https://img.shields.io/badge/-Xposed-green?style=flat&logo=Android&logoColor=white)](#)
-[![License](https://img.shields.io/github/license/Aruvelut-123/XMSFNotiChannel)](https://github.com/Aruvelut-123/XMSFNotiChannel/blob/master/LICENSE)
+[![libxposed](https://img.shields.io/badge/libxposed-API%20102-0a7ea4?style=flat-square)](https://github.com/libxposed/api)
+[![Android](https://img.shields.io/badge/Android-13%2B-3ddc84?style=flat-square&logo=android&logoColor=white)](https://developer.android.com)
+[![Kotlin](https://img.shields.io/badge/Kotlin-2.4-7f52ff?style=flat-square&logo=kotlin&logoColor=white)](https://kotlinlang.org)
+[![Compose](https://img.shields.io/badge/Jetpack%20Compose-Material%203-4285f4?style=flat-square&logo=jetpackcompose&logoColor=white)](https://developer.android.com/jetpack/compose)
+[![Miuix](https://img.shields.io/badge/Miuix-0.9.4-ff6900?style=flat-square)](https://github.com/miuix-kotlin-multiplatform/miuix)
+[![License](https://img.shields.io/badge/License-AGPL--3.0-blue?style=flat-square)](LICENSE)
 
-一键管理所有应用的**运营消息 / 营销推广 / 活动推荐**类通知通道，仅支持 MIUI / HyperOS。
+一键管理所有应用的**运营消息 / 营销推广 / 活动推荐**类通知通道。仅支持 MIUI / HyperOS。
 
-## 测试环境
+## 使用
 
-已在本人的 REDMI K80 Pro（HyperOS 4.0.0.10 / Android 17）+ LSPosed 上实测通过。
-
-## 使用方法
-
-1. 在 LSPosed 中激活模块，作用域勾选「系统框架」
+1. 在 LSPosed 中启用模块，作用域勾选「系统框架」
 2. 重启手机
-3. 授予模块「查询所有应用」权限（`QUERY_ALL_PACKAGES`）
+3. 授予「查询所有应用」权限（`QUERY_ALL_PACKAGES`）
 
-第 3 步别漏。Android 11+ 应用默认只能看到很少的包，未授权时扫描结果几乎为空。
+第 3 步别漏——Android 11+ 默认只能看到很少的包，未授权时扫描结果几乎为空。
 
 ## 功能
 
-- **首页**：模块状态、通道统计、设备信息概览
-- **功能**：按应用分组列出所有匹配到的通知通道，单条可开关；右上角菜单一键全开 / 全关
-- **应用详情**：逐条查看与切换某个应用的全部通道
-- **设置**：通道规则、主题模式、悬浮底栏、液态玻璃、模糊、语言、隐藏桌面图标、配置导入导出
+- **概览**：模块状态、通道统计、设备信息
+- **功能**：按应用分组列出匹配到的通道，支持搜索与单条开关，右上角菜单一键全开 / 全关
+- **应用详情**：逐条切换某个应用的全部通道
+- **通道导出**：列出全部已安装应用，导出其完整通知通道表为 JSON，便于分析
+- **设置**：自定义规则、主题、悬浮底栏、液态玻璃、模糊、语言、配置导入导出
 
-## 无法使用？
+## 环境
 
-先确认模块已激活、作用域已勾选、已授予「查询所有应用」权限；仍不行请附 LSPosed 日志提 Issue。
+已在 REDMI K80 Pro（HyperOS 4.0.0.10 / Android 17）+ LSPosed 实测通过。
+
+## 排错
+
+先确认模块已激活、作用域已勾选、已授予「查询所有应用」权限。仍不行请附 LSPosed 日志提 Issue。
 
 ## 致谢
 
-- 原作者 / 维护者：[迷璐](http://www.coolapk.com/u/1189245)（酷安）
+- 原作者：[迷璐](http://www.coolapk.com/u/1189245)（酷安）
 - Android 17 适配与重构：[Baymaxawa](https://github.com/Aruvelut-123)
-- 工程地基 / UI 框架：[MiuixGuiTemplate](https://github.com/Ianzb/MiuixGuiTemplate)
+- 工程地基：[MiuixGuiTemplate](https://github.com/Ianzb/MiuixGuiTemplate)
 - 组件库：[Miuix](https://github.com/miuix-kotlin-multiplatform/miuix)
 - 液态玻璃底栏移植自 [SukiSU-Ultra](https://github.com/SukiSU-Ultra/SukiSU-Ultra)
-- 界面改自 [MIUI 原生通知图标](https://github.com/fankes/MIUINativeNotifyIcon)
-- 应用列表获取方式改自 [Hide My Applist](https://github.com/Dr-TSNG/Hide-My-Applist)
+- 界面参考 [MIUI 原生通知图标](https://github.com/fankes/MIUINativeNotifyIcon)
+- 应用列表获取参考 [Hide My Applist](https://github.com/Dr-TSNG/Hide-My-Applist)
 
 ## 许可
 
