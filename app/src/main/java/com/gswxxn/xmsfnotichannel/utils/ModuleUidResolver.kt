@@ -78,17 +78,17 @@ object ModuleUidResolver {
             it.name == "getPackageUid" && it.parameterTypes.firstOrNull() == String::class.java
         } ?: return@runCatching -1
 
-        val args = candidate.parameterTypes.mapIndexed { index, type ->
-            when {
-                index == 0 -> MODULE_PACKAGE
-                type == Long::class.javaPrimitiveType -> 0L
-                type == Int::class.javaPrimitiveType -> 0
+        // 逐个位置按形参类型填值：String / int / long，其余补 null
+        val args: Array<Any?> = Array(candidate.parameterTypes.size) { index ->
+            when (val type = candidate.parameterTypes[index]) {
+                String::class.java -> if (index == 0) MODULE_PACKAGE else null
+                Int::class.javaPrimitiveType -> 0
+                Long::class.javaPrimitiveType -> 0L
                 else -> null
             }
-        }.toTypedArray()
+        }
 
         val result = candidate.invoke(pm, *args) as? Int ?: -1
-        // 不同版本的带 flags 重载可能返回编码过的值，取低 32 位即可
         result
     }.getOrDefault(-1)
 }
