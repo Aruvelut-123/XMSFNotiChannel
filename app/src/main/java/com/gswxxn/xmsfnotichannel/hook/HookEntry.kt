@@ -4,6 +4,7 @@ import android.os.Binder
 import android.util.Log
 import com.gswxxn.xmsfnotichannel.utils.DiagnosticProbe
 import com.gswxxn.xmsfnotichannel.utils.ModuleConstants
+import com.gswxxn.xmsfnotichannel.utils.ModuleUidResolver
 import com.highcapable.yukihookapi.annotation.xposed.YukiHookLibXposedEntry
 import com.highcapable.yukihookapi.hook.factory.encase
 import com.highcapable.yukihookapi.hook.param.PackageParam
@@ -109,7 +110,11 @@ object HookEntry : YukiHookXposedModule {
      * 那时 `PHASE_BOOT_COMPLETED` 已经走完，目标服务必然就位。
      */
     private fun PackageParam.awaitTargetService() {
-        val moduleUid = runCatching { module.appInfo.uid }.getOrDefault(-1)
+        // 注意：不能再用 module.appInfo.uid。
+        // 在 LSPosed 2.2.1 + API 102 的 system_server 里 moduleAppInfo 为 null，
+        // 该 getter 会直接抛异常，被 runCatching 吞掉后静默变成 -1，
+        // 导致 hook 条件永远不成立（钩子挂上但不生效）。
+        val moduleUid = ModuleUidResolver.resolve()
         DiagnosticProbe.mark("awaitTargetService:enter", "moduleUid=$moduleUid")
 
         val waitHookInstalled = runCatching {
@@ -175,6 +180,14 @@ object HookEntry : YukiHookXposedModule {
     private fun PackageParam.hookTargets(moduleUid: Int, quiet: Boolean = false) {
         if (installed) return
 
+        // uid 解析失败时不能静默装一个永远不生效的钩子，
+        // 否则现象是「hook 成功日志有、实际毫无作用」，极难排查。
+        if (moduleUid <= 0) {
+            Log.e(TAG, "module uid unresolved, abort hooking")
+            DiagnosticProbe.mark("hookTargets:abortUid", "moduleUid=$moduleUid")
+            return
+        }
+
         val clazz = runCatching {
             Class.forName(TARGET_CLASS, false, hostClassLoader)
         }.getOrElse {
@@ -229,6 +242,10 @@ object HookEntry : YukiHookXposedModule {
                 putString(ModuleConstants.KEY_TARGET_CLASS, TARGET_CLASS)
                 putString(ModuleConstants.KEY_HOOKED_METHODS, methods.joinToString(","))
             }
-        }.onFailure { Log.w(TAG, "write status failed", it) }
+            DiagnosticProbe.mark("writeStatus:ok")
+        }.onFailure {
+            Log.w(TAG, "write status failed", it)
+            DiagnosticProbe.mark("writeStatus:fail", "err=${it::class.java.name}:${it.message}")
+        }
     }
 }
