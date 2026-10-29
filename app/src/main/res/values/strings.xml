@@ -1,7 +1,7 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
     <string name="app_name">你这运营消息根本就全都是广告吧</string>
-    <string name="module_description">一键管理所有应用的运营消息通知通道</string>
+    <string name="module_description">一键管理所有应用的运营消息 / 营销推广 / 活动推荐类通知通道</string>
 
     <string name="module_version">模块版本：%s</string>
     <string name="module_is_not_active">模块未激活</string>

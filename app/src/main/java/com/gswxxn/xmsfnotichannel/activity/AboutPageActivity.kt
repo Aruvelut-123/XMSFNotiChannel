@@ -145,6 +145,12 @@ class AboutPageActivity : BaseActivity() {
 
             licenseLayout.apply {
                 addLicenseV(
+                    "YukiHookAPI",
+                    "HighCapable",
+                    "https://github.com/HighCapable/YukiHookAPI",
+                    "Apache License 2.0"
+                )
+                addLicenseV(
                     "MIUINativeNotifyIcon",
                     "fankes",
                     "https://github.com/fankes/MIUINativeNotifyIcon",
