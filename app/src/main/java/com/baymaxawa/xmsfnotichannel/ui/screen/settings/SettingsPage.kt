@@ -24,8 +24,11 @@ import androidx.compose.foundation.layout.systemBars
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
@@ -58,6 +61,11 @@ import top.yukonga.miuix.kmp.basic.BasicComponent
 import top.yukonga.miuix.kmp.basic.Card
 import top.yukonga.miuix.kmp.basic.MiuixScrollBehavior
 import top.yukonga.miuix.kmp.basic.Scaffold
+import top.yukonga.miuix.kmp.basic.TextField
+import top.yukonga.miuix.kmp.basic.TextButton
+import top.yukonga.miuix.kmp.overlay.OverlayDialog
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Arrangement
 import top.yukonga.miuix.kmp.basic.SmallTitle
 import top.yukonga.miuix.kmp.basic.TopAppBar
 import top.yukonga.miuix.kmp.preference.ArrowPreference
@@ -97,6 +105,14 @@ fun SettingsPageView(
 
     LaunchedEffect(Unit) { SafeModeReader.refresh() }
 
+    // 「通道规则」相关：自定义关键词对话框
+    val rulePrefs = context.getSharedPreferences(
+        context.packageName + "_preferences",
+        android.content.Context.MODE_PRIVATE,
+    )
+    var ruleKeyword by remember { mutableStateOf(rulePrefs.getString("search_name", "").orEmpty()) }
+    var showRuleDialog by remember { mutableStateOf(false) }
+    var ruleInput by remember { mutableStateOf(ruleKeyword) }
     val hazeState = rememberBlurState()
     val blurActive = isBlurEnabled && hazeState != null
     val barColor = if (blurActive) Color.Transparent else MiuixTheme.colorScheme.surface
@@ -270,6 +286,36 @@ fun SettingsPageView(
                             )
                         }
 
+                        SmallTitle(text = stringResource(R.string.settings_channel_rule))
+                        Card(
+                            modifier = Modifier.padding(horizontal = 12.dp).padding(bottom = 12.dp)
+                        ) {
+                            Column {
+                                BasicComponent(
+                                    title = stringResource(R.string.label_current_rule),
+                                    summary = ruleKeyword.ifEmpty {
+                                        stringResource(R.string.rule_builtin_default)
+                                    },
+                                    onClick = {
+                                        ruleInput = ruleKeyword
+                                        showRuleDialog = true
+                                    },
+                                )
+                                BasicComponent(
+                                    title = stringResource(R.string.rule_reset),
+                                    summary = stringResource(R.string.rule_reset_summary),
+                                    onClick = {
+                                        rulePrefs.edit().remove("search_name").apply()
+                                        ruleKeyword = ""
+                                        Toast.makeText(
+                                            context,
+                                            resources.getString(R.string.rule_reset_done),
+                                            Toast.LENGTH_SHORT,
+                                        ).show()
+                                    },
+                                )
+                            }
+                        }
                         SmallTitle(text = stringResource(R.string.settings_interface))
                         Card(
                             modifier = Modifier.padding(horizontal = 12.dp).padding(bottom = 12.dp)
@@ -425,6 +471,49 @@ fun SettingsPageView(
                         )
                     }
                 }
+            }
+        }
+    }
+
+    // 自定义规则对话框
+    OverlayDialog(
+        show = showRuleDialog,
+        title = stringResource(R.string.label_current_rule),
+        summary = stringResource(R.string.rule_dialog_summary),
+        onDismissRequest = { showRuleDialog = false },
+    ) {
+        Column {
+            TextField(
+                value = ruleInput,
+                onValueChange = { ruleInput = it },
+                label = stringResource(R.string.rule_dialog_label),
+                modifier = Modifier.fillMaxWidth(),
+                singleLine = true,
+            )
+            Row(
+                modifier = Modifier.fillMaxWidth().padding(top = 12.dp),
+                horizontalArrangement = Arrangement.spacedBy(12.dp),
+            ) {
+                TextButton(
+                    text = stringResource(R.string.action_cancel),
+                    onClick = { showRuleDialog = false },
+                    modifier = Modifier.weight(1f),
+                )
+                TextButton(
+                    text = stringResource(R.string.action_confirm),
+                    onClick = {
+                        val value = ruleInput.trim()
+                        rulePrefs.edit().putString("search_name", value).apply()
+                        ruleKeyword = value
+                        showRuleDialog = false
+                        Toast.makeText(
+                            context,
+                            resources.getString(R.string.rule_saved),
+                            Toast.LENGTH_SHORT,
+                        ).show()
+                    },
+                    modifier = Modifier.weight(1f),
+                )
             }
         }
     }

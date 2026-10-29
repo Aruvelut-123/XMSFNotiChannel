@@ -28,7 +28,11 @@ import com.baymaxawa.xmsfnotichannel.ui.icons.ErrorOutlineIcon
 import com.baymaxawa.xmsfnotichannel.ui.icons.RemoveCircleOutlineIcon
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableIntStateOf
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
@@ -40,7 +44,9 @@ import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.baymaxawa.xmsfnotichannel.R
-import com.baymaxawa.xmsfnotichannel.prefs.OptionRegistry
+import com.baymaxawa.xmsfnotichannel.utils.AppInfoHelper
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
 import com.baymaxawa.xmsfnotichannel.ui.screen.scope.ScopeListActivity
 import com.baymaxawa.xmsfnotichannel.ui.util.BlurredBar
 import com.baymaxawa.xmsfnotichannel.ui.util.blurSource
@@ -79,9 +85,11 @@ fun HomePageView(
     val blurActive = isBlurEnabled && hazeState != null
     val barColor = if (blurActive) Color.Transparent else MiuixTheme.colorScheme.surface
 
-    // 每次切回主页时刷新作用域，保证授权变化能及时反映。
+    // 每次切回主页时刷新作用域，保证授权变化能及时反映；
+    // root 检测也移到首屏之后，冷启动不再先拉起 su。
     LaunchedEffect(refreshKey) {
         XposedServiceManager.refreshScope()
+        XposedServiceManager.checkRootIfNeeded()
     }
 
     Scaffold(
@@ -122,7 +130,27 @@ fun HomePageView(
                     // 模块已激活但无 Root：重启等功能不可用，单独提示。
                     val rootMissing = activated && rootChecked && !rootAvailable
                     val scopeCount = XposedServiceManager.scope.size
-                    val featureCount = OptionRegistry.all().size
+                    // 概览统计：扫描真实通道数据（IO 线程，不阻塞首帧）
+                    var statApps by remember { mutableIntStateOf(0) }
+                    var statChannels by remember { mutableIntStateOf(0) }
+                    var statEnabled by remember { mutableIntStateOf(0) }
+                    LaunchedEffect(refreshKey) {
+                        val stats = withContext(Dispatchers.IO) {
+                            runCatching {
+                                val list = AppInfoHelper(context).getAppInfoListForNew()
+                                Triple(
+                                    list.map { it.packageName }.distinct().size,
+                                    list.size,
+                                    list.count { it.ncInfo.importance > 0 },
+                                )
+                            }.getOrNull()
+                        }
+                        if (stats != null) {
+                            statApps = stats.first
+                            statChannels = stats.second
+                            statEnabled = stats.third
+                        }
+                    }
 
                     val statusColor = when {
                         !activated -> when {
@@ -178,7 +206,7 @@ fun HomePageView(
                         .height(IntrinsicSize.Min)
 
                     if (isWideScreen) {
-                        // 横屏：状态卡 / 作用域 / 功能总数 三卡片横向三等分。
+                        // 横屏：状态卡 + 三项统计横向四等分。
                         Row(
                             modifier = cardsModifier,
                             horizontalArrangement = Arrangement.spacedBy(12.dp),
@@ -191,21 +219,25 @@ fun HomePageView(
                                 imageVector = statusIcon,
                                 iconTint = iconTint,
                                 statusColor = statusColor,
-                                // 手动重新检测一次 Root（仅在打开应用与点按状态卡时各检测一次，
-                                // 避免后台反复执行 su 触发权限弹窗）。
                                 onClick = { XposedServiceManager.checkRoot() },
                                 compact = true,
                                 modifier = Modifier.weight(1f).fillMaxHeight(),
                             )
                             CountCard(
-                                title = stringResource(R.string.home_scope),
-                                count = scopeCount.toString(),
-                                onClick = openScopeList,
+                                title = stringResource(R.string.home_stat_apps),
+                                count = statApps.toString(),
+                                onClick = onOpenExamples,
                                 modifier = Modifier.weight(1f).fillMaxHeight(),
                             )
                             CountCard(
-                                title = stringResource(R.string.home_feature_count),
-                                count = featureCount.toString(),
+                                title = stringResource(R.string.home_stat_channels),
+                                count = statChannels.toString(),
+                                onClick = onOpenExamples,
+                                modifier = Modifier.weight(1f).fillMaxHeight(),
+                            )
+                            CountCard(
+                                title = stringResource(R.string.home_stat_enabled),
+                                count = statEnabled.toString(),
                                 onClick = onOpenExamples,
                                 modifier = Modifier.weight(1f).fillMaxHeight(),
                             )
@@ -223,7 +255,6 @@ fun HomePageView(
                                 imageVector = statusIcon,
                                 iconTint = iconTint,
                                 statusColor = statusColor,
-                                // 手动重新检测一次 Root（同上）。
                                 onClick = { XposedServiceManager.checkRoot() },
                                 modifier = Modifier.weight(1f).fillMaxHeight(),
                             )
@@ -233,19 +264,37 @@ fun HomePageView(
                                     .fillMaxHeight()
                             ) {
                                 CountCard(
-                                    title = stringResource(R.string.home_scope),
-                                    count = scopeCount.toString(),
-                                    onClick = openScopeList,
+                                    title = stringResource(R.string.home_stat_apps),
+                                    count = statApps.toString(),
+                                    onClick = onOpenExamples,
                                     modifier = Modifier.fillMaxWidth().weight(1f),
                                 )
                                 Spacer(Modifier.height(12.dp))
                                 CountCard(
-                                    title = stringResource(R.string.home_feature_count),
-                                    count = featureCount.toString(),
+                                    title = stringResource(R.string.home_stat_channels),
+                                    count = statChannels.toString(),
                                     onClick = onOpenExamples,
                                     modifier = Modifier.fillMaxWidth().weight(1f),
                                 )
                             }
+                        }
+                        Spacer(Modifier.height(12.dp))
+                        Row(
+                            modifier = Modifier.fillMaxWidth().padding(horizontal = 12.dp),
+                            horizontalArrangement = Arrangement.spacedBy(12.dp)
+                        ) {
+                            CountCard(
+                                title = stringResource(R.string.home_stat_enabled),
+                                count = statEnabled.toString(),
+                                onClick = onOpenExamples,
+                                modifier = Modifier.weight(1f),
+                            )
+                            CountCard(
+                                title = stringResource(R.string.home_scope),
+                                count = scopeCount.toString(),
+                                onClick = openScopeList,
+                                modifier = Modifier.weight(1f),
+                            )
                         }
                     }
                 }

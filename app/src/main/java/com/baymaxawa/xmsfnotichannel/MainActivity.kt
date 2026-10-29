@@ -54,7 +54,7 @@ import com.baymaxawa.xmsfnotichannel.ui.component.UpdateDialog
 import com.baymaxawa.xmsfnotichannel.ui.component.liquid.LiquidGlassNavigationBar
 import com.baymaxawa.xmsfnotichannel.ui.component.liquid.LiquidGlassNavigationBarItem
 import com.baymaxawa.xmsfnotichannel.ui.screen.about.AboutPageContent
-import com.baymaxawa.xmsfnotichannel.ui.screen.features.FeaturesPageView
+import com.baymaxawa.xmsfnotichannel.ui.screen.home.HomePageView
 import com.baymaxawa.xmsfnotichannel.ui.screen.home.NotifyHostPageView
 import com.baymaxawa.xmsfnotichannel.ui.screen.settings.SettingsPageView
 import com.baymaxawa.xmsfnotichannel.ui.theme.AppTheme
@@ -321,13 +321,17 @@ private fun MainScreen(
                 pageNestedScrollConnection = PagerGestureNestedScrollConnection,
             ) { page ->
                 when (page) {
-                    0 -> NotifyHostPageView(
+                    // 主页：模板自带的概览（模块状态 / 统计 / 设备信息）
+                    0 -> HomePageView(
                         isBlurEnabled = isBlurEnabled,
                         refreshKey = homeRefreshKey,
                         extraBottomPadding = navBarHeight,
+                        onOpenExamples = { onItemSelected(1) },
                     )
-                    1 -> FeaturesPageView(
+                    // 功能页：本模块真正的功能——通知通道管理
+                    1 -> NotifyHostPageView(
                         isBlurEnabled = isBlurEnabled,
+                        refreshKey = homeRefreshKey,
                         extraBottomPadding = navBarHeight,
                     )
                     2 -> SettingsPageView(

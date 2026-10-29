@@ -1,5 +1,5 @@
 <resources>
-    <string name="app_name">XMSFNotiChannel</string>
+    <string name="app_name">你这运营消息根本全都是广告吧</string>
     <string name="tab_home">主页</string>
     <string name="tab_features">功能</string>
     <string name="tab_settings">设置</string>
@@ -50,7 +50,7 @@
     <string name="language_default">默认</string>
     <string name="language_zh_cn">简体中文</string>
     <string name="language_en">English</string>
-    <string name="copyright">© 2026 Ianzb.</string>
+    <string name="copyright">© 2026 Baymaxawa</string>
 
     <!-- Module status -->
     <string name="module_status">模块状态</string>
@@ -203,11 +203,11 @@
     <!-- About -->
     <string name="about">关于</string>
     <string name="about_source_code">项目地址</string>
-    <string name="about_source_code_summary">https://github.com/your-name/your-repo</string>
-    <string name="about_telegram">Telegram 群组</string>
-    <string name="about_telegram_summary">https://t.me/your-channel</string>
+    <string name="about_source_code_summary">https://github.com/Aruvelut-123/XMSFNotiChannel</string>
+    <string name="about_developer">开发者</string>
+    <string name="about_developer_summary">迷璐 · Baymaxawa</string>
     <string name="about_dependencies">第三方许可证与致谢</string>
-    <string name="about_based_on">Based on XMSFNotiChannel 0.6.0</string>
+    <string name="about_based_on">Based on MiuixGuiTemplate 0.6.0</string>
     <string name="license_agpl">GNU AGPL v3.0</string>
     <string name="license_agpl_summary">查看完整协议文本</string>
     <string name="third_party_licenses_title">第三方许可证与致谢</string>
@@ -243,4 +243,24 @@
     <string name="msg_bulk_success">已修改 %1$d 个通道</string>
     <string name="msg_bulk_no_change">没有需要修改的通道</string>
     <string name="hint_no_app_list_permission">未获取到应用列表权限，请手动授予「获取应用列表」权限后重试</string>
+    <string name="home_stat_apps">应用数</string>
+    <string name="home_stat_channels">通道数</string>
+    <string name="home_stat_enabled">已开启</string>
+    <string name="home_overview">概览</string>
+    <string name="home_overview_summary">已扫描 %1$d 个应用，共 %2$d 个通知通道</string>
+    <string name="home_channels_entry">通知通道管理</string>
+    <string name="home_channels_entry_summary">按应用查看并开关通知通道</string>
+    <string name="about_developer_group">开发者</string>
+    <string name="dev_milu">迷璐</string>
+    <string name="dev_milu_summary">原作者 / 维护者</string>
+    <string name="dev_baymaxawa">Baymaxawa</string>
+    <string name="dev_baymaxawa_summary">Android 17 适配与重构</string>
+    <string name="settings_channel_rule">通道规则</string>
+    <string name="rule_builtin_default">内置关键词表（运营 / 营销 / 广告 / 活动 / 推荐…）</string>
+    <string name="rule_reset">恢复默认规则</string>
+    <string name="rule_reset_summary">清除自定义关键词，回到内置匹配表</string>
+    <string name="rule_reset_done">已恢复默认规则</string>
+    <string name="rule_dialog_summary">留空则使用内置关键词表；填写则按正则匹配通道名</string>
+    <string name="rule_dialog_label">关键词 / 正则</string>
+    <string name="rule_saved">规则已保存</string>
 </resources>

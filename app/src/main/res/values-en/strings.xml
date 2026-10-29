@@ -1,5 +1,5 @@
 <resources>
-    <string name="app_name">XMSFNotiChannel</string>
+    <string name="app_name">NotiChannel Ads Blocker</string>
     <string name="tab_home">Home</string>
     <string name="tab_features">Features</string>
     <string name="tab_settings">Settings</string>
@@ -50,7 +50,7 @@
     <string name="language_default">Default</string>
     <string name="language_zh_cn">简体中文</string>
     <string name="language_en">English</string>
-    <string name="copyright">© 2026 Ianzb.</string>
+    <string name="copyright">© 2026 Baymaxawa</string>
 
     <!-- Module status -->
     <string name="module_status">Module Status</string>
@@ -203,11 +203,11 @@
     <!-- About -->
     <string name="about">About</string>
     <string name="about_source_code">Source Code</string>
-    <string name="about_source_code_summary">https://github.com/your-name/your-repo</string>
-    <string name="about_telegram">Telegram Group</string>
-    <string name="about_telegram_summary">https://t.me/your-channel</string>
+    <string name="about_source_code_summary">https://github.com/Aruvelut-123/XMSFNotiChannel</string>
+    <string name="about_developer">Developer</string>
+    <string name="about_developer_summary">Milu · Baymaxawa</string>
     <string name="about_dependencies">Third Party Licenses &amp; Credits</string>
-    <string name="about_based_on">Based on XMSFNotiChannel 0.6.0</string>
+    <string name="about_based_on">Based on MiuixGuiTemplate 0.6.0</string>
     <string name="license_agpl">GNU AGPL v3.0</string>
     <string name="license_agpl_summary">View full license text</string>
     <string name="third_party_licenses_title">Third Party Licenses &amp; Credits</string>
@@ -217,4 +217,48 @@
     <string name="licenses_section_androidx">AndroidX</string>
     <string name="licenses_section_hook">Hook Framework</string>
     <string name="licenses_section_refs">Referenced Projects</string>
+    <string name="home_stat_apps">Apps</string>
+    <string name="home_stat_channels">Channels</string>
+    <string name="home_stat_enabled">Enabled</string>
+    <string name="home_overview">Overview</string>
+    <string name="home_overview_summary">Scanned %1$d apps, %2$d channels</string>
+    <string name="home_channels_entry">Notification channels</string>
+    <string name="home_channels_entry_summary">Manage channels per app</string>
+    <string name="about_developer_group">Developer</string>
+    <string name="dev_milu">Milu</string>
+    <string name="dev_milu_summary">Original author / maintainer</string>
+    <string name="dev_baymaxawa">Baymaxawa</string>
+    <string name="dev_baymaxawa_summary">Android 17 adaptation</string>
+    <string name="settings_channel_rule">Channel Rule</string>
+    <string name="rule_builtin_default">Built-in keyword list (promo / ads / campaigns / recommendations...)</string>
+    <string name="rule_reset">Reset to built-in rule</string>
+    <string name="rule_reset_summary">Clear the custom keyword and use the built-in matcher</string>
+    <string name="rule_reset_done">Built-in rule restored</string>
+    <string name="rule_dialog_summary">Leave empty for the built-in list; otherwise matched as a regex</string>
+    <string name="rule_dialog_label">Keyword / regex</string>
+    <string name="rule_saved">Rule saved</string>
+    <string name="action_disable_all">Disable All</string>
+    <string name="action_enable_all">Enable All</string>
+    <string name="action_recheck">Recheck</string>
+    <string name="hint_loading">Loading...</string>
+    <string name="hint_no_app_list_permission">No app list access. Grant the "query all packages" permission and retry.</string>
+    <string name="hint_no_channel">No notification channels matched “%1$s”.</string>
+    <string name="hint_not_active">Module is not active</string>
+    <string name="hint_start_check">Tap to check</string>
+    <string name="home_feature_entry">Notification channels</string>
+    <string name="home_feature_entry_summary">Toggle notification channels of other apps</string>
+    <string name="label_app_enabled_summary">%1$d / %2$d enabled</string>
+    <string name="label_current_rule">Current rule</string>
+    <string name="label_framework">Framework</string>
+    <string name="label_module_version">Version %1$s</string>
+    <string name="label_toggle_all_for_app">Toggle all for this app</string>
+    <string name="msg_bulk_no_change">Nothing to change</string>
+    <string name="msg_bulk_success">%1$d channels updated</string>
+    <string name="msg_toggle_failed">Failed to change %1$s / %2$s</string>
+    <string name="section_apps">Apps</string>
+    <string name="section_channels">Channels</string>
+    <string name="state_module_active">Active</string>
+    <string name="state_module_inactive">Not active</string>
+    <string name="state_module_not_in_scope">Not in scope</string>
+    <string name="state_module_restart_needed">Injected, restart required</string>
 </resources>

@@ -50,8 +50,16 @@ object XposedServiceManager {
     }
 
     fun init() {
+        // 只做服务绑定；root 检测在首屏可见后再触发，
+        // 避免冷启动时同步拉起 su 阻塞 Application.onCreate。
         XposedServiceHelper.registerListener(listener)
-        checkRoot()
+    }
+
+    /**
+     * 首屏可见时调用：root 还没检测过就检测一次，否则复用缓存结果。
+     */
+    fun checkRootIfNeeded() {
+        if (!rootChecked) checkRoot()
     }
 
     /**

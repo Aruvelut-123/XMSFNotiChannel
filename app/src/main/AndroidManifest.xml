@@ -54,10 +54,6 @@
             android:label="@string/third_party_licenses_title"
             android:theme="@style/Theme.XMSFNotiChannel" />
         <activity
-            android:name=".ui.screen.features.FeatureSubPageActivity"
-            android:exported="false"
-            android:theme="@style/Theme.XMSFNotiChannel" />
-        <activity
             android:name=".ui.screen.scope.ScopeListActivity"
             android:exported="false"
             android:theme="@style/Theme.XMSFNotiChannel" />

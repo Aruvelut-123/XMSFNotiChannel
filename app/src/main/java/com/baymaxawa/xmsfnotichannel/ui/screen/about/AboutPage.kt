@@ -54,10 +54,13 @@ import com.baymaxawa.xmsfnotichannel.ui.util.pageContentPadding
 import com.baymaxawa.xmsfnotichannel.ui.util.pageScrollModifiers
 import com.baymaxawa.xmsfnotichannel.ui.util.rememberBlurBackdrop
 import com.baymaxawa.xmsfnotichannel.ui.util.rememberBlurState
+import top.yukonga.miuix.kmp.basic.BasicComponent
 import top.yukonga.miuix.kmp.basic.Card
+import top.yukonga.miuix.kmp.basic.BasicComponent
 import top.yukonga.miuix.kmp.basic.CardDefaults
 import top.yukonga.miuix.kmp.basic.MiuixScrollBehavior
 import top.yukonga.miuix.kmp.basic.Scaffold
+import top.yukonga.miuix.kmp.basic.SmallTitle
 import top.yukonga.miuix.kmp.basic.ScrollBehavior
 import top.yukonga.miuix.kmp.basic.SmallTopAppBar
 import top.yukonga.miuix.kmp.blur.BlendColorEntry
@@ -361,16 +364,50 @@ private fun AboutContent(
                         ),
                     ) {
                         val sourceCodeUrl = stringResource(R.string.about_source_code_summary)
-                        val feedbackUrl = stringResource(R.string.about_telegram_summary)
                         ArrowPreference(
                             title = stringResource(R.string.about_source_code),
                             summary = sourceCodeUrl,
                             onClick = { uriHandler.openUri(sourceCodeUrl) },
                         )
-                        ArrowPreference(
-                            title = stringResource(R.string.about_telegram),
-                            summary = feedbackUrl,
-                            onClick = { uriHandler.openUri(feedbackUrl) },
+                    }
+                    // 开发者：原作者与本项目维护者
+                    Card(
+                        modifier = Modifier
+                            .padding(horizontal = 12.dp)
+                            .padding(top = 12.dp)
+                            .then(
+                                if (contentBackdrop != null) {
+                                    Modifier.textureBlur(
+                                        backdrop = contentBackdrop,
+                                        shape = RoundedCornerShape(16.dp),
+                                        blurRadius = blurRadius,
+                                        noiseCoefficient = noiseCoefficient,
+                                        colors = BlurDefaults.blurColors(
+                                            blendColors = cardBlend,
+                                            brightness = brightness,
+                                            contrast = contrast,
+                                            saturation = saturation,
+                                        ),
+                                    )
+                                } else {
+                                    Modifier
+                                },
+                            ),
+                        colors = CardDefaults.defaultColors(
+                            if (contentBackdrop != null) Color.Transparent else colorScheme.surfaceContainer,
+                            Color.Transparent,
+                        ),
+                    ) {
+                        SmallTitle(text = stringResource(R.string.about_developer_group))
+                        BasicComponent(
+                            title = stringResource(R.string.dev_milu),
+                            summary = stringResource(R.string.dev_milu_summary),
+                            onClick = { uriHandler.openUri("http://www.coolapk.com/u/1189245") },
+                        )
+                        BasicComponent(
+                            title = stringResource(R.string.dev_baymaxawa),
+                            summary = stringResource(R.string.dev_baymaxawa_summary),
+                            onClick = { uriHandler.openUri("https://github.com/Aruvelut-123") },
                         )
                     }
                     Card(
