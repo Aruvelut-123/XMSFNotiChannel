@@ -61,9 +61,11 @@ class NCUtils(private val context: Context) {
     }
 
     private val allMethods: Array<Method> by lazy {
-        iNotificationManager.javaClass.declaredMethods.onEach {
-            runCatching { it.isAccessible = true }
-        }
+        // declaredMethods 的平台类型是 Array<Method!>；直接返回即可，
+        // 不要经过 onEach（它返回 Array<out Method>，与属性类型不兼容）。
+        val arr = iNotificationManager.javaClass.declaredMethods
+        arr.forEach { m -> runCatching { m.isAccessible = true } }
+        arr
     }
 
     /**
