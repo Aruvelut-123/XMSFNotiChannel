@@ -1,7 +1,6 @@
 package com.gswxxn.xmsfnotichannel.activity
 
 import android.content.Intent
-import android.os.Bundle
 import android.widget.Toast
 import androidx.activity.compose.setContent
 import androidx.compose.runtime.getValue
@@ -50,7 +49,7 @@ class MainActivity : BaseActivity() {
         runOnUiThread { syncFrameworkState() }
     }
 
-    override fun onCreate(savedInstanceState: Bundle?) {
+    override fun onCreateContent() {
         uiState.versionName = BuildConfig.VERSION_NAME
         uiState.ruleLabel = currentRuleLabel()
 

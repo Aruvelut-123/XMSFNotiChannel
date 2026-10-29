@@ -26,11 +26,16 @@ abstract class BaseActivity : ComponentActivity() {
         // Android 15+ 强制 edge-to-edge；这里显式开启，让下方留白完全交给 Miuix 处理
         enableEdgeToEdge()
 
-        onCreate()
+        onCreateContent()
     }
 
-    /** 子类在这里构建界面 */
-    abstract fun onCreate()
+    /**
+     * 子类在这里构建界面。
+     *
+     * 之所以不叫 `onCreate()`：那样会和 `onCreate(savedInstanceState: Bundle?)`
+     * 构成两个同名重载，子类只重写带参数的版本时编译器会认为无参版本未实现。
+     */
+    abstract fun onCreateContent()
 
     /**
      * 设置状态栏图标明暗。

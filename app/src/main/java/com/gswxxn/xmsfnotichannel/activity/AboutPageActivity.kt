@@ -4,7 +4,6 @@ import android.content.ComponentName
 import android.content.Intent
 import android.content.pm.PackageManager
 import android.net.Uri
-import android.os.Bundle
 import android.widget.Toast
 import androidx.activity.compose.setContent
 import androidx.compose.runtime.getValue
@@ -33,7 +32,7 @@ class AboutPageActivity : BaseActivity() {
     private var clickCount = 0
     private var lastClickTime = 0L
 
-    override fun onCreate(savedInstanceState: Bundle?) {
+    override fun onCreateContent() {
         val componentName = ComponentName(this, MainActivity::class.java)
         hideIcon = packageManager.getComponentEnabledSetting(componentName) ==
             PackageManager.COMPONENT_ENABLED_STATE_DISABLED
