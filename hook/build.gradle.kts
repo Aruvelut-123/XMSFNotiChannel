@@ -3,7 +3,7 @@ plugins {
 }
 
 android {
-    namespace = "com.baymaxawa.xmsfnotichannel.hook"
+    namespace = "cn.baymaxawa.xmsfnotichannel.hook"
     compileSdk {
         version = release(37)
     }

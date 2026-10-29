@@ -1,0 +1,154 @@
+package cn.baymaxawa.xmsfnotichannel.ui.component.pref
+
+import android.content.Context
+import android.widget.Toast
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
+import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
+import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.setValue
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.unit.dp
+import cn.baymaxawa.xmsfnotichannel.R
+import cn.baymaxawa.xmsfnotichannel.ui.component.SystemRestartConfirmDialog
+import cn.baymaxawa.xmsfnotichannel.xposed.AppRestarter
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
+import top.yukonga.miuix.kmp.basic.Button
+import top.yukonga.miuix.kmp.basic.ButtonDefaults
+import top.yukonga.miuix.kmp.basic.Card
+import top.yukonga.miuix.kmp.basic.TextButton
+import top.yukonga.miuix.kmp.preference.CheckboxLocation
+import top.yukonga.miuix.kmp.preference.CheckboxPreference
+import top.yukonga.miuix.kmp.window.WindowDialog
+import top.yukonga.miuix.kmp.basic.Text as MiuixText
+
+/**
+ * 包名列表重启对话框：勾选后批量「重启」。
+ *
+ * - 每行右侧为勾选组件，默认全选；
+ * - 底部左侧为「全选 / 全不选」普通按钮，右侧为「重启」主按钮（无勾选时禁用）。
+ *
+ * 由 [HookOptionsPage] 在检测到 `PACKAGE_LIST` 选项或传入自定义包名时，通过右上角按钮弹出。
+ */
+@Composable
+fun QuickActionDialog(
+    packages: List<String>,
+    onDismiss: () -> Unit,
+) {
+    val context = LocalContext.current
+    val coroutineScope = rememberCoroutineScope()
+
+    // 去重：调用方传入的包名可能重复（如显式列表叠加同一组包名），
+    // 否则 selected（Set）永远小于 packages.size，「全选/全不选」判断将失效。
+    val uniquePackages = remember(packages) { packages.distinct() }
+    var selected by remember(uniquePackages) { mutableStateOf(uniquePackages.toSet()) }
+    val allSelected = uniquePackages.isNotEmpty() && selected.containsAll(uniquePackages)
+
+    // 目标包含系统进程时，重启会触发系统重启，需二次确认。
+    var pendingRestart by remember { mutableStateOf<List<String>?>(null) }
+    val requestRestart: (List<String>) -> Unit = { targets ->
+        when {
+            targets.isEmpty() -> Unit
+            targets.any { AppRestarter.isSystemPackage(it) } -> pendingRestart = targets
+            else -> coroutineScope.launch { restartPackages(context, targets) }
+        }
+    }
+
+    WindowDialog(
+        show = true,
+        title = stringResource(R.string.quick_action_title),
+        onDismissRequest = onDismiss,
+    ) {
+        // 外层限高 + 列表 weight：包名很多时列表占满剩余空间并滚动，底部两个按钮始终可见。
+        Column(modifier = Modifier.fillMaxWidth().heightIn(max = 420.dp)) {
+            Card(modifier = Modifier.fillMaxWidth().weight(1f, fill = false)) {
+                Column(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .verticalScroll(rememberScrollState()),
+                ) {
+                    uniquePackages.forEach { packageName ->
+                        val label = remember(packageName) { resolveLabel(context, packageName) }
+                        CheckboxPreference(
+                            title = label,
+                            summary = packageName.takeIf { it != label },
+                            checked = packageName in selected,
+                            onCheckedChange = { checked ->
+                                selected = if (checked) selected + packageName else selected - packageName
+                            },
+                            checkboxLocation = CheckboxLocation.End,
+                        )
+                    }
+                }
+            }
+            Spacer(Modifier.height(12.dp))
+            Row(modifier = Modifier.fillMaxWidth()) {
+                TextButton(
+                    text = stringResource(
+                        if (allSelected) R.string.quick_action_deselect_all
+                        else R.string.quick_action_select_all,
+                    ),
+                    onClick = {
+                        selected = if (allSelected) emptySet() else uniquePackages.toSet()
+                    },
+                    colors = ButtonDefaults.textButtonColors(),
+                    modifier = Modifier.weight(1f),
+                )
+                Spacer(Modifier.width(8.dp))
+                Button(
+                    onClick = { requestRestart(selected.toList()) },
+                    enabled = selected.isNotEmpty(),
+                    colors = ButtonDefaults.buttonColorsPrimary(),
+                    modifier = Modifier.weight(1f),
+                ) {
+                    MiuixText(text = stringResource(R.string.quick_action_restart))
+                }
+            }
+        }
+    }
+
+    pendingRestart?.let { targets ->
+        SystemRestartConfirmDialog(
+            onConfirm = {
+                pendingRestart = null
+                coroutineScope.launch { restartPackages(context, targets) }
+            },
+            onDismiss = { pendingRestart = null },
+        )
+    }
+}
+
+/** 解析应用显示名，取不到时回退包名。 */
+private fun resolveLabel(context: Context, packageName: String): String = runCatching {
+    val info = context.packageManager.getApplicationInfo(packageName, 0)
+    context.packageManager.getApplicationLabel(info).toString()
+}.getOrDefault(packageName)
+
+private suspend fun restartPackages(context: Context, packages: List<String>) {
+    if (packages.isEmpty()) return
+    val results = packages.map { packageName ->
+        withContext(Dispatchers.IO) {
+            AppRestarter.restart(context, packageName)
+        }
+    }
+    val message = if (results.all { it }) {
+        R.string.quick_action_restart_success
+    } else {
+        R.string.scope_restart_need_root
+    }
+    Toast.makeText(context, context.getString(message), Toast.LENGTH_SHORT).show()
+}

@@ -4,17 +4,17 @@ plugins {
 }
 
 android {
-    namespace = "com.baymaxawa.xmsfnotichannel"
+    namespace = "cn.baymaxawa.xmsfnotichannel"
     compileSdk {
         version = release(37)
     }
 
     defaultConfig {
-        applicationId = "com.baymaxawa.xmsfnotichannel"
+        applicationId = "cn.baymaxawa.xmsfnotichannel"
         minSdk = 33
         targetSdk = 37
-        versionCode = 2
-        versionName = "1.0.1"
+        versionCode = 3
+        versionName = "1.1.0"
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
     }

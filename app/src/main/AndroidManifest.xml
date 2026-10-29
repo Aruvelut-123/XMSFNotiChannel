@@ -70,7 +70,7 @@
             android:name=".xposed.HookStatusReceiver"
             android:exported="true">
             <intent-filter>
-                <action android:name="com.baymaxawa.xmsfnotichannel.action.HOOKS_ACTIVE" />
+                <action android:name="cn.baymaxawa.xmsfnotichannel.action.HOOKS_ACTIVE" />
             </intent-filter>
         </receiver>
     </application>

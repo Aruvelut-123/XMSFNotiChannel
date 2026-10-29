@@ -1,0 +1,130 @@
+package cn.baymaxawa.xmsfnotichannel.xposed
+
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.setValue
+import cn.baymaxawa.xmsfnotichannel.prefs.PrefsStore
+import io.github.libxposed.service.XposedService
+import io.github.libxposed.service.XposedServiceHelper
+
+/**
+ * LSPosed 服务绑定：作用域查询 / 主动申请。
+ */
+object XposedServiceManager {
+
+    private var service: XposedService? = null
+
+    var isActivated by mutableStateOf(false)
+        private set
+
+    /** 是否已获得 Root 权限（异步检测）。 */
+    var isRootAvailable by mutableStateOf(false)
+        private set
+
+    /** Root 是否已检测完成。 */
+    var rootChecked by mutableStateOf(false)
+        private set
+
+    var scope by mutableStateOf<List<String>>(emptyList())
+        private set
+
+    @Volatile
+    private var rootChecking = false
+
+    private val listener = object : XposedServiceHelper.OnServiceListener {
+        override fun onServiceBind(service: XposedService) {
+            this@XposedServiceManager.service = service
+            isActivated = true
+            PrefsStore.attachRemote(service.getRemotePreferences(PrefsStore.REMOTE_GROUP))
+            SafeModeReader.attach(service)
+            refreshScope()
+        }
+
+        override fun onServiceDied(service: XposedService) {
+            this@XposedServiceManager.service = null
+            isActivated = false
+            scope = emptyList()
+            PrefsStore.attachRemote(null)
+            SafeModeReader.attach(null)
+        }
+    }
+
+    fun init() {
+        // 只做服务绑定；root 检测在首屏可见后再触发，
+        // 避免冷启动时同步拉起 su 阻塞 Application.onCreate。
+        XposedServiceHelper.registerListener(listener)
+    }
+
+    /**
+     * 首屏可见时调用：root 还没检测过就检测一次，否则复用缓存结果。
+     */
+    fun checkRootIfNeeded() {
+        if (!rootChecked) checkRoot()
+    }
+
+    /**
+     * 异步检测 Root 权限，避免阻塞主线程；进行中的检测会被合并。
+     *
+     * 检测会真正拉起一次 `su`，在部分 Root 管理器上会弹出授权 / 使用提示，
+     * 因此只在两个时机调用：
+     * 1. 应用启动时（[init]）；
+     * 2. 用户在主页手动点按状态卡片。
+     * 其余场景（回到前台、定时轮询等）一律复用上一次结果。
+     */
+    fun checkRoot() {
+        if (rootChecking) return
+        rootChecking = true
+        Thread {
+            val root = RootHelper.isRootAvailable()
+            android.os.Handler(android.os.Looper.getMainLooper()).post {
+                isRootAvailable = root
+                rootChecked = true
+                rootChecking = false
+            }
+        }.apply {
+            isDaemon = true
+            name = "MiuixRootCheck"
+        }.start()
+    }
+
+    fun getService(): XposedService? = service
+
+    fun refreshScope() {
+        scope = service?.scope ?: emptyList()
+    }
+
+    @Suppress("unused")
+    fun isInScope(packageName: String): Boolean = scope.contains(packageName)
+
+    /**
+     * 主动申请作用域：仅对尚未授权的包发起请求。
+     */
+    fun ensureScope(packages: List<String>, onResult: ((Boolean, String?) -> Unit)? = null) {
+        val current = service
+        if (current == null) {
+            onResult?.invoke(false, "service unavailable")
+            return
+        }
+        val missing = packages.filter { it.isNotEmpty() && it !in scope }
+        if (missing.isEmpty()) {
+            onResult?.invoke(true, null)
+            return
+        }
+        current.requestScope(missing, object : XposedService.OnScopeEventListener {
+            override fun onScopeRequestApproved(approved: List<String>) {
+                refreshScope()
+                onResult?.invoke(true, null)
+            }
+
+            override fun onScopeRequestFailed(message: String) {
+                onResult?.invoke(false, message)
+            }
+        })
+    }
+
+    @Suppress("unused")
+    fun removeScope(packages: List<String>) {
+        service?.removeScope(packages)
+        refreshScope()
+    }
+}
