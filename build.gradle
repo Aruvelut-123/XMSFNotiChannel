@@ -5,6 +5,8 @@ plugins {
     // YukiHook 1.5.0 的产物由 Kotlin 2.4 编译，因此必须显式使用 2.4 的 Kotlin 插件，
     // 不能依赖 AGP 9 内置的 Kotlin 2.2（其 metadata 版本读不了 2.4）
     id 'org.jetbrains.kotlin.android' version '2.4.21' apply false
+    // Compose 编译器插件必须与 Kotlin 版本严格一致
+    id 'org.jetbrains.kotlin.plugin.compose' version '2.4.21' apply false
 }
 
 tasks.register('clean', Delete) {

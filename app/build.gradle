@@ -1,6 +1,7 @@
 plugins {
     id 'com.android.application'
     id 'org.jetbrains.kotlin.android'
+    id 'org.jetbrains.kotlin.plugin.compose'
 }
 
 android {
@@ -12,8 +13,8 @@ android {
         applicationId "com.gswxxn.xmsfnotichannel"
         minSdk 28
         targetSdk 37
-        versionCode 182
-        versionName "1.8.2"
+        versionCode 190
+        versionName "1.9.0"
         testInstrumentationRunner "androidx.test.runner.AndroidJUnitRunner"
     }
 
@@ -54,8 +55,8 @@ android {
     }
 
     buildFeatures {
-        viewBinding true
         buildConfig true
+        compose true
     }
 
     packaging {
@@ -93,4 +94,12 @@ dependencies {
     implementation 'androidx.core:core-ktx:1.13.1'
     implementation 'androidx.preference:preference-ktx:1.2.1'
     implementation 'org.jetbrains.kotlinx:kotlinx-coroutines-android:1.8.1'
+
+    // Miuix：Compose 版的 MIUI/HyperOS 风格组件库
+    implementation 'top.yukonga.miuix.kmp:miuix-ui-android:0.9.4'
+    implementation 'top.yukonga.miuix.kmp:miuix-icons-android:0.9.4'
+    // Compose 基础能力：ui / foundation / material 由 Miuix 传递，这里显式声明 Activity 宿主支持
+    implementation 'androidx.activity:activity-compose:1.12.0'
+    // lifecycleScope：lifecycle-runtime-ktx
+    implementation 'androidx.lifecycle:lifecycle-runtime-ktx:2.9.4'
 }
