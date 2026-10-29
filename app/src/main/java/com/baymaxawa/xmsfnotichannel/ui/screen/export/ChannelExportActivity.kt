@@ -132,15 +132,15 @@ class ChannelExportActivity : BaseSubPageActivity() {
                 if (all == null) {
                     item { LoadingRow() }
                 } else {
-                    val filtered = remember(all, keyword) {
-                        val q = keyword.trim()
-                        if (q.isEmpty()) {
-                            all
-                        } else {
-                            all.filter {
-                                it.appName.contains(q, true) ||
-                                    it.packageName.contains(q, true)
-                            }
+                    // 这里是 LazyListScope（非 Composable 上下文），不能调 remember；
+                    // 几百条字符串过滤本身很便宜，直接算即可。
+                    val q = keyword.trim()
+                    val filtered = if (q.isEmpty()) {
+                        all
+                    } else {
+                        all.filter {
+                            it.appName.contains(q, true) ||
+                                it.packageName.contains(q, true)
                         }
                     }
                     item {
