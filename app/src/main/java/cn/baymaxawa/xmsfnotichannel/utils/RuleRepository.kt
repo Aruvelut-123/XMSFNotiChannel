@@ -45,6 +45,9 @@ object RuleRepository {
 
     private const val TIMEOUT_MS = 10_000
 
+    /** 自动同步的最小间隔：12 小时。避免每次冷启动都打一次 GitHub。 */
+    private const val AUTO_SYNC_INTERVAL_MS = 12L * 60L * 60L * 1000L
+
     /** 云端规则集元信息，界面显示「规则库版本 / 更新时间」用 */
     var cloudMeta by mutableStateOf(CloudMeta())
         private set
@@ -124,6 +127,24 @@ object RuleRepository {
     fun activeRuleCount(): Int = effectiveRules().count { it.usable }
 
     // ---------------------------------------------------------------- 云端同步
+
+    /**
+     * 启动时自动同步。
+     *
+     * 每次冷启动都发一次请求没必要，因此带节流：距上次成功同步不足
+     * [AUTO_SYNC_INTERVAL_MS] 时直接返回 null（表示「本次跳过」）。
+     * 从未同步过（首次安装 / 一直无网）时会立刻拉一次。
+     */
+    suspend fun autoSync(context: Context): SyncResult? {
+        init(context)
+        val last = cloudMeta.lastSyncAt
+        if (cloudMeta.fromCloud && last > 0L) {
+            val elapsed = System.currentTimeMillis() - last
+            // 时钟回拨导致 elapsed 为负时也重建同步，避免永久跳过
+            if (elapsed in 0 until AUTO_SYNC_INTERVAL_MS) return null
+        }
+        return syncFromCloud(context)
+    }
 
     /**
      * 从云端拉取规则并落盘。

@@ -219,7 +219,8 @@
     <string name="licenses_section_refs">Referenced Projects</string>
     <string name="home_stat_apps">Apps</string>
     <string name="home_stat_channels">Channels</string>
-    <string name="home_stat_enabled">Enabled</string>
+    <string name="home_stat_blocked">Blocked</string>
+    <string name="home_rule_version">Rule version</string>
     <string name="home_overview">Overview</string>
     <string name="home_overview_summary">Scanned %1$d apps, %2$d channels</string>
     <string name="home_channels_entry">Notification channels</string>

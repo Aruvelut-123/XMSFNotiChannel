@@ -45,6 +45,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import cn.baymaxawa.xmsfnotichannel.R
 import cn.baymaxawa.xmsfnotichannel.utils.AppInfoHelper
+import cn.baymaxawa.xmsfnotichannel.utils.RuleRepository
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import cn.baymaxawa.xmsfnotichannel.ui.screen.scope.ScopeListActivity
@@ -129,17 +130,21 @@ fun HomePageView(
                     val rootAvailable = XposedServiceManager.isRootAvailable
                     // 模块已激活但无 Root：重启等功能不可用，单独提示。
                     val rootMissing = activated && rootChecked && !rootAvailable
-                    val scopeCount = XposedServiceManager.scope.size
+                    // 作用域数量不再单列统计卡，改为显示规则库版本：
+                    // 规则库是能同步更新的，比作用域数量更有信息量。
+                    remember(context) { RuleRepository.init(context) }
+                    val ruleVersion = RuleRepository.cloudMeta.version
+                    val ruleVersionText = if (ruleVersion > 0) "v$ruleVersion" else "—"
                     // 概览统计：扫描真实通道数据（IO 线程，不阻塞首帧）
                     var statApps by remember { mutableIntStateOf(0) }
                     var statChannels by remember { mutableIntStateOf(0) }
-                    var statEnabled by remember { mutableIntStateOf(0) }
+                    var statBlocked by remember { mutableIntStateOf(0) }
                     // 未激活时不做匹配扫描：hook 没生效，扫出来的数字既不可信也白耗 Binder
                     LaunchedEffect(refreshKey, activated) {
                         if (!activated) {
                             statApps = 0
                             statChannels = 0
-                            statEnabled = 0
+                            statBlocked = 0
                             return@LaunchedEffect
                         }
                         val stats = withContext(Dispatchers.IO) {
@@ -148,14 +153,15 @@ fun HomePageView(
                                 Triple(
                                     list.map { it.packageName }.distinct().size,
                                     list.size,
-                                    list.count { it.ncInfo.importance > 0 },
+                                    // importance == 0 即通道已关闭，也就是被拦截的条数
+                                    list.count { it.ncInfo.importance == 0 },
                                 )
                             }.getOrNull()
                         }
                         if (stats != null) {
                             statApps = stats.first
                             statChannels = stats.second
-                            statEnabled = stats.third
+                            statBlocked = stats.third
                         }
                     }
 
@@ -243,8 +249,8 @@ fun HomePageView(
                                 modifier = Modifier.weight(1f).fillMaxHeight(),
                             )
                             CountCard(
-                                title = stringResource(R.string.home_stat_enabled),
-                                count = statEnabled.toString(),
+                                title = stringResource(R.string.home_stat_blocked),
+                                count = statBlocked.toString(),
                                 onClick = onOpenExamples,
                                 modifier = Modifier.weight(1f).fillMaxHeight(),
                             )
@@ -291,14 +297,14 @@ fun HomePageView(
                             horizontalArrangement = Arrangement.spacedBy(12.dp)
                         ) {
                             CountCard(
-                                title = stringResource(R.string.home_stat_enabled),
-                                count = statEnabled.toString(),
+                                title = stringResource(R.string.home_stat_blocked),
+                                count = statBlocked.toString(),
                                 onClick = onOpenExamples,
                                 modifier = Modifier.weight(1f),
                             )
                             CountCard(
-                                title = stringResource(R.string.home_scope),
-                                count = scopeCount.toString(),
+                                title = stringResource(R.string.home_rule_version),
+                                count = ruleVersionText,
                                 onClick = openScopeList,
                                 modifier = Modifier.weight(1f),
                             )

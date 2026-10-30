@@ -40,6 +40,7 @@ import cn.baymaxawa.xmsfnotichannel.R
 import cn.baymaxawa.xmsfnotichannel.hook.device.DeviceType
 import cn.baymaxawa.xmsfnotichannel.prefs.ConfigBackup
 import cn.baymaxawa.xmsfnotichannel.prefs.ConfigState
+import cn.baymaxawa.xmsfnotichannel.ui.component.RuleSection
 import cn.baymaxawa.xmsfnotichannel.ui.screen.export.ChannelExportActivity
 import cn.baymaxawa.xmsfnotichannel.ui.screen.safemode.SafeModeActivity
 import cn.baymaxawa.xmsfnotichannel.ui.util.BlurredBar
@@ -47,14 +48,10 @@ import cn.baymaxawa.xmsfnotichannel.ui.util.MiuixExpandSpec
 import cn.baymaxawa.xmsfnotichannel.ui.util.blurSource
 import cn.baymaxawa.xmsfnotichannel.ui.util.pageScrollModifiers
 import cn.baymaxawa.xmsfnotichannel.ui.util.rememberBlurState
-import kotlinx.coroutines.launch
 import top.yukonga.miuix.kmp.basic.BasicComponent
 import top.yukonga.miuix.kmp.basic.Card
 import top.yukonga.miuix.kmp.basic.MiuixScrollBehavior
 import top.yukonga.miuix.kmp.basic.Scaffold
-import top.yukonga.miuix.kmp.basic.TextField
-import top.yukonga.miuix.kmp.basic.TextButton
-import top.yukonga.miuix.kmp.window.WindowDialog
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Arrangement
 import top.yukonga.miuix.kmp.basic.SmallTitle
@@ -93,14 +90,6 @@ fun SettingsPageView(
     val title = stringResource(R.string.tab_settings)
 
 
-    // 「通道规则」相关：自定义关键词对话框
-    val rulePrefs = context.getSharedPreferences(
-        context.packageName + "_preferences",
-        android.content.Context.MODE_PRIVATE,
-    )
-    var ruleKeyword by remember { mutableStateOf(rulePrefs.getString("search_name", "").orEmpty()) }
-    var showRuleDialog by remember { mutableStateOf(false) }
-    var ruleInput by remember { mutableStateOf(ruleKeyword) }
     val hazeState = rememberBlurState()
     val blurActive = isBlurEnabled && hazeState != null
     val barColor = if (blurActive) Color.Transparent else MiuixTheme.colorScheme.surface
@@ -177,36 +166,8 @@ fun SettingsPageView(
             ) {
                 item {
                     Column {
-                        SmallTitle(text = stringResource(R.string.settings_channel_rule))
-                        Card(
-                            modifier = Modifier.padding(horizontal = 12.dp).padding(bottom = 12.dp)
-                        ) {
-                            Column {
-                                BasicComponent(
-                                    title = stringResource(R.string.label_current_rule),
-                                    summary = ruleKeyword.ifEmpty {
-                                        stringResource(R.string.rule_builtin_default)
-                                    },
-                                    onClick = {
-                                        ruleInput = ruleKeyword
-                                        showRuleDialog = true
-                                    },
-                                )
-                                BasicComponent(
-                                    title = stringResource(R.string.rule_reset),
-                                    summary = stringResource(R.string.rule_reset_summary),
-                                    onClick = {
-                                        rulePrefs.edit().remove("search_name").apply()
-                                        ruleKeyword = ""
-                                        Toast.makeText(
-                                            context,
-                                            resources.getString(R.string.rule_reset_done),
-                                            Toast.LENGTH_SHORT,
-                                        ).show()
-                                    },
-                                )
-                            }
-                        }
+                        RuleSection()
+
                         SmallTitle(text = stringResource(R.string.settings_interface))
                         Card(
                             modifier = Modifier.padding(horizontal = 12.dp).padding(bottom = 12.dp)
@@ -376,55 +337,6 @@ fun SettingsPageView(
                         )
                     }
                 }
-            }
-        }
-    }
-
-    // 自定义规则对话框
-    // 注意：这里必须用 WindowDialog 而不是 OverlayDialog。
-    // OverlayDialog 内部走 MiuixPopupUtils.DialogLayout，作用是把对话框塞进一个
-    // 全局队列，由根布局里的 MiuixPopupHost() 统一渲染；本项目没有挂载
-    // MiuixPopupHost（挂在 MainActivity 的话子页面 Activity 又拿不到），
-    // 结果就是 show 变成 true 但没有任何东西被绘制，表现为「点了没反应」。
-    // WindowDialog 自己持有 Dialog 窗口，不依赖宿主。
-    WindowDialog(
-        show = showRuleDialog,
-        title = stringResource(R.string.label_current_rule),
-        summary = stringResource(R.string.rule_dialog_summary),
-        onDismissRequest = { showRuleDialog = false },
-    ) {
-        Column {
-            TextField(
-                value = ruleInput,
-                onValueChange = { ruleInput = it },
-                label = stringResource(R.string.rule_dialog_label),
-                modifier = Modifier.fillMaxWidth(),
-                singleLine = true,
-            )
-            Row(
-                modifier = Modifier.fillMaxWidth().padding(top = 12.dp),
-                horizontalArrangement = Arrangement.spacedBy(12.dp),
-            ) {
-                TextButton(
-                    text = stringResource(R.string.action_cancel),
-                    onClick = { showRuleDialog = false },
-                    modifier = Modifier.weight(1f),
-                )
-                TextButton(
-                    text = stringResource(R.string.action_confirm),
-                    onClick = {
-                        val value = ruleInput.trim()
-                        rulePrefs.edit().putString("search_name", value).apply()
-                        ruleKeyword = value
-                        showRuleDialog = false
-                        Toast.makeText(
-                            context,
-                            resources.getString(R.string.rule_saved),
-                            Toast.LENGTH_SHORT,
-                        ).show()
-                    },
-                    modifier = Modifier.weight(1f),
-                )
             }
         }
     }

@@ -83,8 +83,8 @@ class NotifyHomeController(
     /**
      * 从云端同步默认规则。
      *
-     * 只在「从未同步过」或用户手动触发时调用，不在每次进页面时拉取：
-     * 规则变化很慢，没必要为它每次都发一次网络请求。
+     * 启动时的自动同步在 [cn.baymaxawa.xmsfnotichannel.TemplateApp] 里做（带 12 小时节流），
+     * 这里只负责用户手动触发的即时同步与结果提示。
      */
     fun syncCloudRules(silent: Boolean = false, onDone: (RuleRepository.SyncResult) -> Unit = {}) {
         owner.lifecycleScope.launch {

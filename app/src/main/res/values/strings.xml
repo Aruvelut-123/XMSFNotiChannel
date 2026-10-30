@@ -278,7 +278,8 @@
     <string name="hint_no_app_list_permission">未获取到应用列表权限，请手动授予「获取应用列表」权限后重试</string>
     <string name="home_stat_apps">应用数</string>
     <string name="home_stat_channels">通道数</string>
-    <string name="home_stat_enabled">已开启</string>
+    <string name="home_stat_blocked">已屏蔽</string>
+    <string name="home_rule_version">规则版本</string>
     <string name="home_overview">概览</string>
     <string name="home_overview_summary">已扫描 %1$d 个应用，共 %2$d 个通知通道</string>
     <string name="home_channels_entry">通知通道管理</string>
