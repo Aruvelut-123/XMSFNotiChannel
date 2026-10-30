@@ -283,7 +283,7 @@ object RuleRepository {
     /** 与云端 `rules.json` 同源的最小可用副本，仅在从未同步过时使用 */
     fun builtinRules(): List<ChannelRule> = FALLBACK
 
-    const val BUILTIN_VERSION = 1
+    const val BUILTIN_VERSION = 2
     const val BUILTIN_UPDATED_AT = "2026-10-30"
 
     private val FALLBACK: List<ChannelRule> = listOf(
@@ -314,6 +314,9 @@ object RuleRepository {
                 "安全检测", "支付", "付款", "转账", "收款", "订单", "物流", "退款", "验证码",
                 "电量", "充电", "网络", "蓝牙", "热点", "定位",
                 "播放器", "通知栏", "控件", "前台服务",
+                // 通讯应用的主通道：名字里带「消息」但不是营销通道。
+                // 不排除的话，启用激进规则后「新消息通知」会被当成营销通道关掉。
+                "新消息", "聊天消息", "私信", "群聊消息",
             ),
             source = ChannelRule.Source.BUILTIN,
         )
