@@ -14,6 +14,7 @@ import cn.baymaxawa.xmsfnotichannel.utils.AppListPermission
 import cn.baymaxawa.xmsfnotichannel.utils.ChannelMatcher
 import cn.baymaxawa.xmsfnotichannel.utils.FrameworkStatus
 import cn.baymaxawa.xmsfnotichannel.utils.NCUtils
+import cn.baymaxawa.xmsfnotichannel.utils.RuleRepository
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
@@ -55,7 +56,10 @@ class NotifyHomeController(
 
     init {
         ui.versionLine = context.getString(R.string.label_module_version, BuildConfig.VERSION_NAME)
+        // 规则仓库必须先就绪：NCUtils 扫描时会读 effectiveRules()
+        RuleRepository.init(context)
         ui.ruleLabel = currentRuleLabel()
+        ui.ruleTip = buildRuleTip()
         FrameworkStatus.addListener(statusListener)
         syncFrameworkState()
     }
@@ -71,8 +75,34 @@ class NotifyHomeController(
             .orEmpty()
             .ifEmpty { DEFAULT_CHANNEL_NAME }
         ui.ruleLabel = currentRuleLabel()
+        ui.ruleTip = buildRuleTip()
         FrameworkStatus.refresh()
         syncFrameworkState()
+    }
+
+    /**
+     * 从云端同步默认规则。
+     *
+     * 只在「从未同步过」或用户手动触发时调用，不在每次进页面时拉取：
+     * 规则变化很慢，没必要为它每次都发一次网络请求。
+     */
+    fun syncCloudRules(silent: Boolean = false, onDone: (RuleRepository.SyncResult) -> Unit = {}) {
+        owner.lifecycleScope.launch {
+            val result = RuleRepository.syncFromCloud(context)
+            ui.ruleLabel = currentRuleLabel()
+            ui.ruleTip = buildRuleTip()
+            if (!silent) {
+                toast(
+                    when (result) {
+                        is RuleRepository.SyncResult.Success ->
+                            context.getString(R.string.msg_rule_sync_ok, result.count, result.version)
+                        is RuleRepository.SyncResult.Failure ->
+                            context.getString(R.string.msg_rule_sync_failed, result.message)
+                    }
+                )
+            }
+            onDone(result)
+        }
     }
 
     fun onPause() {
@@ -100,7 +130,18 @@ class NotifyHomeController(
 
     /** 当前生效规则的可读描述 */
     fun currentRuleLabel(): String =
-        channelName.ifBlank { ChannelMatcher.defaultDescription() }
+        ChannelMatcher.describe(RuleRepository.effectiveRules(), channelName)
+
+    /**
+     * 功能页顶部提示文案：说清「开着」和「关着」分别是什么效果。
+     *
+     * 用户反馈里最常见的问题是「我关了什么？」「关掉的还能收到吗？」，
+     * 与其在文档里解释，不如直接写在列表上方。
+     */
+    fun buildRuleTip(): String = context.getString(
+        R.string.rule_tip_body,
+        RuleRepository.activeRuleCount(),
+    )
 
     /**
      * 扫描通道列表。

@@ -382,8 +382,12 @@ class NCUtils(private val context: Context) {
             return emptyList()
         }
 
+        // 规则集合在 Repository 初始化时已就绪；这里取当前生效的全部规则，
+        // 与用户自定义正则一起参与匹配（见 ChannelMatcher 注释）。
+        val rules = RuleRepository.effectiveRules()
+
         return all.filter {
-            ChannelMatcher.matches(it.channelName, it.channelId, channelNameRegex)
+            ChannelMatcher.matches(it.channelName, it.channelId, rules, channelNameRegex)
         }
     }
 

@@ -1,93 +1,82 @@
 package cn.baymaxawa.xmsfnotichannel.utils
 
 /**
- * 通知通道匹配规则。
+ * 通知通道匹配引擎。
  *
- * 原实现只支持「单个正则」，默认值 `运营消息`。但各家 App 的营销通道
- * 名字五花八门，实测本机 774 个通道里光是 `营销推广` 就有 19 个，
- * 另有 `热门推广`、`优惠促销`、`精选活动`、`智能推荐`、`商城消息` 等等，
- * 用单一名字必然漏掉一大片。
+ * ## 从单规则到多规则的演进
  *
- * 因此改成两层：
- * 1. 用户在设置里填了自定义内容 → 按正则处理（保持原有能力，且从全匹配放宽为包含匹配）
- * 2. 用户没填 → 走内置关键词表
+ * 原实现只有「一个自定义正则 / 一套内置关键词」。实际上：
+ * - 内置词表需要随 App 更新不断补词，靠发版推送太慢 → 需要云端同步
+ * - 不同用户容忍度不同，有人想更激进 → 需要多条规则并存
+ * - 用户还想自己加几条 → 需要自定义规则与官方规则并行
  *
- * 内置表分「正向词」和「排除词」。排除词是必需的：
- * `活动` 这个词会命中 `后台活动`、`模拟活动`、`安装进度实时活动`，
- * `推送` 会命中 `新版本推送`，这些误关会直接影响正常功能。
+ * 因此改成「规则集合」模型：
+ *
+ * 1. **排除优先**：先扫全部启用规则的 exclude，命中任何一个就直接放行。
+ *    这一步必须在正向词之前，否则 `订单物流` 会因为含 `物流` 之外的词被误关。
+ * 2. **正向取并集**：再扫全部启用规则的 positive，命中任意一个即判定为营销通道。
+ * 3. **自定义正则**：设置页里仍可填一条正则，作为额外的正向条件（向后兼容旧行为）。
+ *
+ * 规则来源由 [ChannelRule.source] 标记，界面据此分组展示。
+ * 规则的实际增删改与持久化在 [RuleRepository] 中，本类只做纯计算，便于单测。
  */
 object ChannelMatcher {
-
-    /**
-     * 正向关键词：通道名或通道 id 包含任意一个即视为营销/推广类。
-     *
-     * 词表来自本机 774 个真实通道名的统计，按语义分组便于维护。
-     */
-    private val POSITIVE_KEYWORDS = listOf(
-        // 运营与推送
-        "运营消息", "运营活动",
-        // 运营通道 / 个性化通道（QQ音乐实测：广告走「运营通道」「个性化通道」，
-        // 名字里完全没有营销词，旧词表因此整条漏掉。这里只加带「通道/推送/推荐」
-        // 后缀的完整词，避免把「运营消息」这类用户可能想要的通道一起扫进来。）
-        "运营通道", "运营推送", "个性化通道", "个性化推荐", "个性化推送",
-        // 广告营销
-        "营销", "推广", "广告", "促销", "特惠", "优惠", "优惠券", "红包",
-        "折扣", "满减", "秒杀", "团购", "补贴", "返利", "福利",
-        // 活动
-        "活动通知", "平台活动", "精选活动", "活动优惠", "业务活动", "互动活动",
-        "周年庆", "大促",
-        // 签到与任务（TT语音「签到、抢兑活动」这类名字里只有签到和抢兑）
-        "签到", "抢兑", "抽奖", "积分兑换", "任务奖励", "每日任务",
-        // 推荐与内容
-        "推荐", "精选", "猜你喜欢", "为你推荐", "兴趣内容", "智能推送",
-        "资讯", "热点", "头条", "每日推荐", "社区内容", "内容社区",
-        // 商城电商
-        "商城", "店铺", "上新", "新品", "开售", "商品", "悬浮锁屏",
-        // 直播
-        "直播提醒", "直播动态", "直播预告",
-        // 英文通道名（update_channel_name 这类是更新通知，不在其中）
-        "promotion", "promo", "advert", "campaign", "coupon",
-        "discount", "recommend", "lottery", "checkin"
-    )
-
-    /**
-     * 排除词：通道名包含任意一个就跳过，即使命中了正向词。
-     * 这些通道属于功能性的，关掉会导致 App 无法正常使用或收不到重要信息。
-     */
-    private val EXCLUDE_KEYWORDS = listOf(
-        // 「活动」类误伤
-        "后台活动", "模拟活动", "实时活动", "安装进度",
-        // 下载与文件
-        "下载", "上传", "转码", "安装", "更新服务", "版本更新", "新版本",
-        // 安全与支付
-        "安全检测", "支付", "付款", "转账", "收款", "订单", "物流", "退款", "验证码",
-        // 设备状态
-        "电量", "充电", "网络", "蓝牙", "热点", "定位",
-        // 播放与控件
-        "播放器", "通知栏", "控件", "前台服务"
-    )
 
     /**
      * 判断某个通道是否应纳入「营销/推广」范围。
      *
      * @param channelName 通道显示名，可能为空
      * @param channelId   通道 id，名称为空时用它兜底
-     * @param pattern     用户在设置里填的自定义规则；为空表示使用内置关键词表
+     * @param rules       当前生效的全部规则（已由 Repository 过滤掉未启用的）
+     * @param extraPattern 用户在设置里填的自定义正则；为空表示不使用
      */
-    fun matches(channelName: String, channelId: String, pattern: String): Boolean {
-        if (pattern.isNotBlank()) {
-            val regex = runCatching { Regex(pattern) }.getOrNull() ?: return false
-            // 从原来的全匹配放宽为包含匹配，这样填「运营消息」也能命中「运营消息通知」
-            return regex.containsMatchIn(channelName) || regex.containsMatchIn(channelId)
+    fun matches(
+        channelName: String,
+        channelId: String,
+        rules: List<ChannelRule>,
+        extraPattern: String = "",
+    ): Boolean {
+        // 名称和 id 都参与匹配：部分 App 通道名是英文占位符，真正的语义在 id 里
+        val haystacks = listOf(channelName, channelId).filter { it.isNotEmpty() }
+        if (haystacks.isEmpty()) return false
+
+        // ① 排除优先：任何一条规则的排除词命中，都直接放行。
+        //    放在正向判断之前，是为了让「激进规则」里的泛化正向词不会误伤功能性通道。
+        rules.forEach { rule ->
+            rule.exclude.forEach { word ->
+                if (haystacks.any { it.contains(word, ignoreCase = true) }) return false
+            }
         }
 
-        val text = channelName.ifEmpty { channelId }
-        if (text.isEmpty()) return false
+        // ② 正向取并集
+        rules.forEach { rule ->
+            rule.positive.forEach { word ->
+                if (haystacks.any { it.contains(word, ignoreCase = true) }) return true
+            }
+        }
 
-        if (EXCLUDE_KEYWORDS.any { text.contains(it, ignoreCase = true) }) return false
-        return POSITIVE_KEYWORDS.any { text.contains(it, ignoreCase = true) }
+        // ③ 自定义正则作为额外正向条件（旧版行为，保持兼容）
+        if (extraPattern.isNotBlank()) {
+            val regex = runCatching { Regex(extraPattern) }.getOrNull()
+                ?: return false
+            return haystacks.any { regex.containsMatchIn(it) }
+        }
+
+        return false
     }
 
-    /** 供界面展示的默认规则说明 */
-    fun defaultDescription(): String = "运营消息 / 营销推广 / 活动 / 推荐 / 商城…（内置规则）"
+    /** 兼容旧调用点：只传正则、不带规则集合时使用内置规则 */
+    fun matches(channelName: String, channelId: String, pattern: String): Boolean {
+        val rules = if (pattern.isNotBlank()) emptyList() else RuleRepository.builtinRules()
+        return matches(channelName, channelId, rules, pattern)
+    }
+
+    /** 供界面展示的规则摘要，例如「内置规则 + 我的一条规则」 */
+    fun describe(rules: List<ChannelRule>, extraPattern: String): String {
+        val names = rules.filter { it.usable }.map { it.name }
+        val parts = ArrayList<String>(names.size + 1)
+        parts.addAll(names)
+        if (extraPattern.isNotBlank()) parts.add("自定义：$extraPattern")
+        return if (parts.isEmpty()) "无规则" else parts.joinToString(" + ")
+    }
 }

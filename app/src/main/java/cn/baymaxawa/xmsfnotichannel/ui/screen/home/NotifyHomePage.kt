@@ -61,6 +61,7 @@ import top.yukonga.miuix.kmp.basic.TextField
 import top.yukonga.miuix.kmp.basic.TopAppBar
 import top.yukonga.miuix.kmp.basic.Text as MiuixText
 import top.yukonga.miuix.kmp.icon.MiuixIcons
+import top.yukonga.miuix.kmp.icon.extended.Info
 import top.yukonga.miuix.kmp.icon.extended.More
 import top.yukonga.miuix.kmp.icon.extended.Refresh
 import top.yukonga.miuix.kmp.window.WindowListPopup
@@ -173,6 +174,41 @@ fun NotifyHomePageView(
                         .padding(top = innerPadding.calculateTopPadding(), bottom = 8.dp),
                     singleLine = true,
                 )
+                // 开关效果说明。用户最容易误解的就是「开着 = 已拦截」，
+                // 因此固定显示在列表上方，并用标题强调方向：开 = 能收到，关 = 已拦截。
+                if (ui.ruleTip.isNotBlank()) {
+                    Column(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(horizontal = 12.dp)
+                            .padding(bottom = 8.dp)
+                            .clip(RoundedCornerShape(12.dp))
+                            .background(MiuixTheme.colorScheme.secondaryContainer)
+                            .padding(horizontal = 12.dp, vertical = 10.dp),
+                    ) {
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Icon(
+                                imageVector = MiuixIcons.Info,
+                                contentDescription = null,
+                                tint = MiuixTheme.colorScheme.onSecondaryContainer,
+                                modifier = Modifier.size(16.dp),
+                            )
+                            MiuixText(
+                                text = stringResource(R.string.rule_tip_title),
+                                style = MiuixTheme.textStyles.footnote1,
+                                fontWeight = FontWeight.Medium,
+                                color = MiuixTheme.colorScheme.onSecondaryContainer,
+                                modifier = Modifier.padding(start = 8.dp),
+                            )
+                        }
+                        MiuixText(
+                            text = ui.ruleTip,
+                            style = MiuixTheme.textStyles.footnote1,
+                            color = MiuixTheme.colorScheme.onSecondaryContainer,
+                            modifier = Modifier.padding(start = 24.dp, top = 4.dp),
+                        )
+                    }
+                }
                 LazyColumn(
                     modifier = Modifier
                         .weight(1f)
@@ -278,6 +314,7 @@ private fun AppRow(
                         R.string.label_app_enabled_summary,
                         app.enabledCount,
                         app.totalCount,
+                        app.totalCount - app.enabledCount,
                     ),
                     fontSize = 12.sp,
                     color = MiuixTheme.colorScheme.onSurfaceContainerVariant,

@@ -234,11 +234,14 @@
     <string name="rule_reset">Reset to built-in rule</string>
     <string name="rule_reset_summary">Clear the custom keyword and use the built-in matcher</string>
     <string name="rule_reset_done">Built-in rule restored</string>
+    <string name="rule_tip_title">What the switch means</string>
+    <string name="rule_tip_body">ON = channel enabled, these notifications still arrive. OFF = channel disabled, these notifications are blocked.\nThe list shows closed / total; a larger number means more blocked. %1$d rule(s) active.</string>
+
     <string name="rule_dialog_summary">Leave empty for the built-in list; otherwise matched as a regex</string>
     <string name="rule_dialog_label">Keyword / regex</string>
     <string name="rule_saved">Rule saved</string>
-    <string name="action_disable_all">Disable All</string>
-    <string name="action_enable_all">Enable All</string>
+    <string name="action_disable_all">Block all</string>
+    <string name="action_enable_all">Restore all</string>
     <string name="action_recheck">Recheck</string>
     <string name="hint_loading">Loading...</string>
     <string name="hint_no_app_list_permission">No app list access. Grant the "query all packages" permission and retry.</string>
@@ -247,8 +250,37 @@
     <string name="hint_start_check">Tap to check</string>
     <string name="home_feature_entry">Notification channels</string>
     <string name="home_feature_entry_summary">Toggle notification channels of other apps</string>
-    <string name="label_app_enabled_summary">%1$d / %2$d enabled</string>
+    <string name="label_app_enabled_summary">%1$d / %2$d on, %3$d blocked</string>
     <string name="label_current_rule">Current rule</string>
+    <string name="settings_rules_multi">Rules</string>
+    <string name="settings_rules_multi_summary">Built-in, cloud and custom rules all take effect together</string>
+    <string name="rule_section_cloud">Cloud rules</string>
+    <string name="rule_section_custom">Custom rules</string>
+    <string name="rule_sync_now">Sync from cloud</string>
+    <string name="rule_sync_summary">Fetch the latest default rules from GitHub</string>
+    <string name="rule_sync_never">Never synced, using built-in rules</string>
+    <string name="rule_sync_meta">Version %1$d · updated %2$s</string>
+    <string name="rule_sync_last">Last synced: %1$s</string>
+    <string name="rule_add_custom">Add custom rule</string>
+    <string name="rule_add_custom_summary">Define your own keywords, matched alongside official rules</string>
+    <string name="rule_name_label">Rule name</string>
+    <string name="rule_positive_label">Positive keywords</string>
+    <string name="rule_positive_summary">One per line; a channel matching any of them is treated as marketing</string>
+    <string name="rule_exclude_label">Exclude keywords</string>
+    <string name="rule_exclude_summary">One per line; a channel matching any of them is skipped</string>
+    <string name="rule_delete">Delete rule</string>
+    <string name="rule_delete_confirm">Delete rule "%1$s"?</string>
+    <string name="rule_deleted">Rule deleted</string>
+    <string name="rule_saved_multi">Rule "%1$s" saved</string>
+    <string name="rule_invalid">Positive keywords cannot be empty</string>
+    <string name="msg_rule_sync_ok">Rules synced: %1$d entries, version %2$d</string>
+    <string name="msg_rule_sync_failed">Sync failed: %1$s</string>
+    <string name="rule_source_cloud">Cloud</string>
+    <string name="rule_source_builtin">Built-in</string>
+    <string name="rule_count_summary">%1$d keywords</string>
+    <string name="msg_rule_import_ok">Imported %1$d rules</string>
+    <string name="msg_rule_import_failed">Invalid rule format</string>
+
     <string name="label_framework">Framework</string>
     <string name="label_module_version">Version %1$s</string>
     <string name="label_toggle_all_for_app">Toggle all for this app</string>

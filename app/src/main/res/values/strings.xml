@@ -220,8 +220,8 @@
 
     <!-- 通知通道功能 -->
     <string name="action_recheck">重新检测</string>
-    <string name="action_enable_all">全部开启</string>
-    <string name="action_disable_all">全部关闭</string>
+    <string name="action_enable_all">全部恢复通知</string>
+    <string name="action_disable_all">全部拦截</string>
     <string name="hint_loading">正在检测通知通道……</string>
     <string name="hint_start_check">尚未检测，点击右上角重新检测</string>
     <string name="hint_no_channel">没有匹配到通知通道\n当前规则：%s</string>
@@ -232,8 +232,38 @@
     <string name="features_search_empty">没有找到匹配的应用</string>
     <string name="section_channels">通知通道</string>
     <string name="label_current_rule">当前规则</string>
+    <!-- 多规则与云端规则 -->
+    <string name="settings_rules_multi">规则管理</string>
+    <string name="settings_rules_multi_summary">内置规则、云端规则与自定义规则可同时生效</string>
+    <string name="rule_section_cloud">云端规则</string>
+    <string name="rule_section_custom">自定义规则</string>
+    <string name="rule_sync_now">从云端同步</string>
+    <string name="rule_sync_summary">从 GitHub 拉取最新的默认规则</string>
+    <string name="rule_sync_never">尚未同步，当前使用内置规则</string>
+    <string name="rule_sync_meta">版本 %1$d · 更新于 %2$s</string>
+    <string name="rule_sync_last">上次同步：%1$s</string>
+    <string name="rule_add_custom">新增自定义规则</string>
+    <string name="rule_add_custom_summary">自己填一组关键词，与官方规则一起匹配</string>
+    <string name="rule_name_label">规则名称</string>
+    <string name="rule_positive_label">正向关键词</string>
+    <string name="rule_positive_summary">每行一个，通道名或 ID 包含任意一个即判定为营销通道</string>
+    <string name="rule_exclude_label">排除关键词</string>
+    <string name="rule_exclude_summary">每行一个，命中任意一个则跳过该通道</string>
+    <string name="rule_delete">删除规则</string>
+    <string name="rule_delete_confirm">确定删除规则「%1$s」？</string>
+    <string name="rule_deleted">规则已删除</string>
+    <string name="rule_saved_multi">规则「%1$s」已保存</string>
+    <string name="rule_invalid">正向关键词不能为空</string>
+    <string name="msg_rule_sync_ok">规则已同步：%1$d 条，版本 %2$d</string>
+    <string name="msg_rule_sync_failed">同步失败：%1$s</string>
+    <string name="rule_source_cloud">云端</string>
+    <string name="rule_source_builtin">内置</string>
+    <string name="rule_count_summary">%1$d 个关键词</string>
+    <string name="msg_rule_import_ok">已导入 %1$d 条规则</string>
+    <string name="msg_rule_import_failed">规则格式不正确</string>
+
     <string name="label_framework">框架状态</string>
-    <string name="label_app_enabled_summary">已开启 %1$d / %2$d</string>
+    <string name="label_app_enabled_summary">通道开启 %1$d / %2$d，关闭 %3$d</string>
     <string name="label_toggle_all_for_app">此应用的全部通道</string>
     <string name="label_module_version">模块版本 %s</string>
     <string name="state_module_active">模块已激活</string>
@@ -263,6 +293,10 @@
     <string name="rule_reset">恢复默认规则</string>
     <string name="rule_reset_summary">清除自定义关键词，回到内置匹配表</string>
     <string name="rule_reset_done">已恢复默认规则</string>
+    <!-- 开关含义提示：用户常把「开着」误解为「已拦截」，这里必须写清方向 -->
+    <string name="rule_tip_title">开关怎么看</string>
+    <string name="rule_tip_body">开 = 通道开启，这类推送会正常送达。关 = 通道关闭，这类推送被拦截，不再出现在通知栏。\n列表里显示「已关闭 / 总数」，数字越大说明拦得越多。当前启用 %1$d 条规则。</string>
+
     <string name="rule_dialog_summary">留空则使用内置关键词表；填写则按正则匹配通道名</string>
     <string name="rule_dialog_label">关键词 / 正则</string>
     <string name="rule_saved">规则已保存</string>

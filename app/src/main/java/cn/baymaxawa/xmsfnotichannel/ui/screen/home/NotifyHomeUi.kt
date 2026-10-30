@@ -31,6 +31,14 @@ class NotifyHomeUi {
     /** 当前生效的搜索规则描述 */
     var ruleLabel by mutableStateOf("")
 
+    /**
+     * 功能页顶部提示：开了会怎样、关着会怎样。
+     *
+     * 放在 UI 状态而不是直接在页面里拼字符串，是为了让文案能随规则数量变化
+     * （例如「当前启用 2 条规则」）。
+     */
+    var ruleTip by mutableStateOf("")
+
     /** null 表示还没开始检测 */
     var apps by mutableStateOf<List<AppUi>?>(null)
 
