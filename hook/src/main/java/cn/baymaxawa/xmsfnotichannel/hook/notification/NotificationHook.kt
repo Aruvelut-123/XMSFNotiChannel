@@ -36,6 +36,17 @@ import cn.baymaxawa.xmsfnotichannel.hook.xposed.HookHelper
  * **只改本模块自己的调用**（`Binder.getCallingUid() == moduleUid`），
  * 其余进程一律透传，把对系统的影响降到最小。
  *
+ * ## 递归坑（Issue #1）
+ *
+ * 替换钩子里**绝不能**用 `method.invoke(thisObject, args)` 调回原方法：
+ * 那个 `Method` 对象已经被挂过 hook，反射调用会再次进入本钩子，
+ * 于是「非本模块调用 → invoke → 又进钩子 → 又 invoke」无限递归，
+ * 最终 system_server 主线程/Binder 线程栈溢出 SIGSEGV，手机表现为黑屏重启。
+ *
+ * 正确做法是走 `HookHelper.intercept` 拿到的 `XposedInterface.Chain`，
+ * 用 `chain.proceed()` 继续调用链——框架内部会跳过当前 hooker 执行真正的原方法，
+ * 权限校验结果原样返回，不会递归。
+ *
  * ## 为什么必须延迟 hook
  *
  * `onSystemServerStarting` 阶段 `SystemServiceManager` 还没 `startService` 到
@@ -145,7 +156,7 @@ class NotificationHook : BaseHook() {
                 .forEach { method ->
                     runCatching {
                         method.isAccessible = true
-                        HookHelper.hookReplace(method) { param ->
+                        HookHelper.intercept(method) { chain ->
                             // 只放行「本模块自身的调用」，其余进程一律走原逻辑，
                             // 避免把系统行为改成全局后门。
                             val callerUid = Binder.getCallingUid()
@@ -156,8 +167,10 @@ class NotificationHook : BaseHook() {
                                     null
                                 }
                             } else {
-                                param.result = method.invoke(param.thisObject, *param.args.toTypedArray())
-                                param.result
+                                // 必须用 chain.proceed() 调用原方法：
+                                // 直接 method.invoke() 会再次触发 Hook，形成递归，
+                                // 最终导致 system_server SIGSEGV 崩溃（Issue #1）。
+                                chain.proceed()
                             }
                         }
                         hooked += name
